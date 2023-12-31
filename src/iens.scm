@@ -5,9 +5,25 @@
         (chicken sort)
         (chicken string)
         (chicken time)
+        (chicken time posix)
         breadline
         sql-de-lite
         srfi-1)
+
+(define (ends-with? maybe-suffix s)
+  (let ((ls  (string-length s))
+        (lms (string-length maybe-suffix)))
+  (and (>= ls lms)
+       (substring=? s maybe-suffix (- ls lms)))))
+
+(define (rfc-3339 seconds)
+  (let ((time-str (time->string (seconds->local-time seconds) "%FT%T%z")))
+    (assert (= 24 (string-length time-str)))
+    (if (equal? "0000" (substring time-str 20))
+        (string-append (substring time-str 0 19) "Z")
+        (string-append (substring time-str 0 22)
+                       ":"
+                       (substring time-str 22)))))
 
 (define (terminate-line line)
   (let ((l (string-length line)))
@@ -223,10 +239,10 @@
   (sql db "INSERT INTO entry(url, notes, ctime, mtime) VALUES (?, ?, ?, ?);"))
 (define auto-tag-stmt
   (sql db "INSERT INTO tagrel SELECT ?,id FROM tag WHERE auto = 1;"))
-(define select-entry-stmt
-  (sql db "SELECT id,url,notes FROM entry WHERE id=?;"))
-(define select-untagged-stmt
+(define list-untagged-stmt
   (sql db "SELECT id,url,notes FROM entry WHERE id NOT IN (SELECT url_id FROM tagrel);"))
+(define select-entry-stmt
+  (sql db "SELECT id,url,type,description,notes,protected,ptime,ctime,mtime FROM entry WHERE id=?;"))
 (define set-notes-stmt
   (sql db "UPDATE entry SET notes=?,mtime=? WHERE id=?;"))
 (define touch-entry-stmt
@@ -288,6 +304,29 @@
   (apply add-notes* (time-id-strings args)))
 
 (define (print-entry-row row)
+  (let ((id         (list-ref row 0))
+        (url        (list-ref row 1))
+        (type       (list-ref row 2))
+        (descr      (list-ref row 3))
+        (notes      (list-ref row 4))
+        (protected? (not (= 0 (list-ref row 5))))
+        (ptime      (list-ref row 6))
+        (ctime      (list-ref row 7))
+        (mtime      (list-ref row 8)))
+    (write-line (conc "#" id (if protected? "*" "") " - " url))
+    (unless (null? ctime) (write-line (conc "Created   " (rfc-3339 ctime))))
+    (unless (null? ptime) (write-line (conc "Protected " (rfc-3339 ptime))))
+    (unless (null? mtime) (write-line (conc "Modified  " (rfc-3339 mtime))))
+    (unless (null? descr)
+      (if (null? type)
+          (write-line "Descripiton:")
+          (write-line (conc "Description (" type "):")))
+      (write-string descr))
+    (unless (null? notes)
+      (write-line (conc "Notes:"))
+      (write-string notes))))
+
+(define (print-listed-entry-row row)
   (write-line (conc "#" (car row) " - " (cadr row)))
   (write-string (caddr row)))
 
@@ -307,7 +346,7 @@
 
 (defcmd (list-untagged)
   "" "Display entries without any tag"
-  (query (for-each-row print-entry-row) select-untagged-stmt))
+  (query (for-each-row print-listed-entry-row) list-untagged-stmt))
 
 (defcmd (set-entry entry-id)
   "entry-id" "Set current entry"
