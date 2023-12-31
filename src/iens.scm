@@ -302,6 +302,8 @@
   (sql db "INSERT INTO entry(url, notes, ctime, mtime) VALUES (?, ?, ?, ?);"))
 (define auto-tag-stmt
   (sql db "INSERT INTO tagrel SELECT ?,id FROM tag WHERE auto = 1;"))
+(define list-tagged-stmt
+  (sql db "SELECT * FROM (SELECT id,url,notes FROM entry WHERE id IN (SELECT url_id FROM tagrel WHERE tag_id IN (SELECT id FROM tag WHERE name=?)) ORDER BY id DESC LIMIT ?) ORDER BY id ASC;"))
 (define list-untagged-stmt
   (sql db "SELECT id,url,notes FROM entry WHERE id NOT IN (SELECT url_id FROM tagrel);"))
 (define select-entry-stmt
@@ -402,6 +404,17 @@
          select-entry-stmt
          entry-id))
 
+(defcmd (list-tagged tag-name . args)
+  "tag-name [limit]" "Display entries with the given tag"
+  (query (for-each-row print-listed-entry-row)
+         list-tagged-stmt
+         tag-name
+         (if (null? args) 10 (car args))))
+
+(defcmd (list-untagged)
+  "" "Display entries without any tag"
+  (query (for-each-row print-listed-entry-row) list-untagged-stmt))
+
 (defcmd (print-entry . args)
   "[entry-id]" "Display an entry"
   (if (null? args)
@@ -410,10 +423,6 @@
         (unless (null? todo)
           (print-entry* (car todo))
           (loop (cdr todo))))))
-
-(defcmd (list-untagged)
-  "" "Display entries without any tag"
-  (query (for-each-row print-listed-entry-row) list-untagged-stmt))
 
 (defcmd (set-entry entry-id)
   "entry-id" "Set current entry"
