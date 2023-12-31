@@ -41,6 +41,9 @@
         (set! cmd-list (cons (list (symbol->string 'name) str first) cmd-list))
         (define (name . args) . rest)))))
 
+(define vt100-entry-header "\033[34m")
+(define vt100-reset        "\033[0m")
+
 ;;;;;;;;;;;;;
 ;; Tracing
 
@@ -313,7 +316,9 @@
         (ptime      (list-ref row 6))
         (ctime      (list-ref row 7))
         (mtime      (list-ref row 8)))
-    (write-line (conc "#" id (if protected? "*" "") " - " url))
+    (write-line (conc vt100-entry-header
+                      "#" id (if protected? "*" "") " - " url
+                      vt100-reset))
     (unless (null? ctime) (write-line (conc "Created   " (rfc-3339 ctime))))
     (unless (null? ptime) (write-line (conc "Protected " (rfc-3339 ptime))))
     (unless (null? mtime) (write-line (conc "Modified  " (rfc-3339 mtime))))
@@ -327,7 +332,9 @@
       (write-string notes))))
 
 (define (print-listed-entry-row row)
-  (write-line (conc "#" (car row) " - " (cadr row)))
+  (write-line (conc vt100-entry-header
+                    "#" (car row) " - " (cadr row)
+                    vt100-reset))
   (write-string (caddr row)))
 
 (define (print-entry* entry-id)
