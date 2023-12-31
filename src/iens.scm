@@ -10,6 +10,9 @@
         sql-de-lite
         srfi-1)
 
+(define (starts-with? maybe-prefix s)
+  (substring=? s maybe-prefix 0 0 (string-length maybe-prefix)))
+
 (define (ends-with? maybe-suffix s)
   (let ((ls  (string-length s))
         (lms (string-length maybe-suffix)))
@@ -47,10 +50,16 @@
 ;;;;;;;;;;;;;
 ;; Tracing
 
-; TODO: trace to a file
+(define trace-port #f)
+(define display-trace #t)
+
 (define (trace obj)
-  (write obj)
-  (newline))
+  (when display-trace
+    (write obj)
+    (newline))
+  (when trace-port
+    (write obj trace-port)
+    (newline trace-port)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;; Persistent Storage
@@ -73,7 +82,7 @@
   (write-line (conc "Initializing database with schema v" schema-version))
   (for-each
     (lambda (s) (exec (sql db s)))
-    (list "CREATE TABLE config (key TEXT, val);"
+    (list "CREATE TABLE config (key TEXT PRIMARY KEY, val);"
           (conc "INSERT INTO config(key, val) VALUES "
                 "('schema-version'," schema-version ");")
           (conc "CREATE TABLE tag (id INTEGER PRIMARY KEY, "
@@ -91,6 +100,57 @@
           "CREATE UNIQUE INDEX i_url ON entry(url);"
           "CREATE UNIQUE INDEX i_tag ON tag(name);"
           "CREATE UNIQUE INDEX i_rel ON tagrel(url_id,tag_id);")))
+
+;;;;;;;;;;;;;;;;;;
+;; Configuration
+
+(define config-verbose #f)
+
+(define (get-config key)
+  (query fetch-value (sql db "SELECT val FROM config WHERE key = ?;") key))
+
+(define (get-config/default key default-value)
+  (let ((result (get-config key)))
+    (if result
+        result
+        default-value)))
+
+(define (string->filename data)
+  (cond ((not data) #f)
+        ((starts-with? "~/" data)
+          (string-append (get-environment-variable "HOME")
+                         (substring data 1)))
+        (else data)))
+
+(define (read-config!)
+  (set! display-trace (= 0 (get-config/default "display-trace" 0)))
+  (let ((trace-filename (get-config "trace")))
+    (when trace-port (close-output-port trace-port))
+    (set! trace-port
+      (if trace-filename
+          (open-output-file (string->filename trace-filename) #:text #:append)
+          #f)))
+  (history-file (string->filename (get-config "histfile"))))
+
+(read-config!)
+
+(defcmd (print-config . args)
+  "[key ...]" "Print configuration"
+  (if (null? args)
+      (query
+        (for-each-row*
+          (lambda (key val) (write-line (conc key ": " val))))
+        (sql db "SELECT key,val FROM config;"))
+      (let loop ((todo args))
+        (unless (null? todo)
+          (write-line (conc (car todo) ": " (get-config (car todo))))
+          (loop (cdr todo))))))
+
+(defcmd (set-config key val)
+  "key value" "Set configuration variable"
+  (trace `(set-config ,key ,val))
+  (exec (sql db "INSERT OR REPLACE INTO config VALUES (?,?);") key val)
+  (read-config!))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Database Updates
