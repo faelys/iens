@@ -302,6 +302,10 @@
   (sql db "INSERT INTO entry(url, notes, ctime, mtime) VALUES (?, ?, ?, ?);"))
 (define auto-tag-stmt
   (sql db "INSERT INTO tagrel SELECT ?,id FROM tag WHERE auto = 1;"))
+(define random-tagged-stmt
+  (sql db "SELECT url_id FROM tagrel WHERE tag_id IN (SELECT id FROM tag WHERE name=?) ORDER BY RANDOM() LIMIT 1;"))
+(define random-untagged-stmt
+  (sql db "SELECT id FROM entry WHERE id NOT IN (SELECT url_id FROM tagrel) ORDER BY RANDOM() LIMIT 1;"))
 (define list-tagged-stmt
   (sql db "SELECT * FROM (SELECT id,url,notes FROM entry WHERE id IN (SELECT url_id FROM tagrel WHERE tag_id IN (SELECT id FROM tag WHERE name=?)) ORDER BY id DESC LIMIT ?) ORDER BY id ASC;"))
 (define list-untagged-stmt
@@ -423,6 +427,24 @@
         (unless (null? todo)
           (print-entry* (car todo))
           (loop (cdr todo))))))
+
+(defcmd (random-tagged tag-name)
+  "tag" "Select a random entry with the given tag"
+  (let ((entry-id (query fetch-value random-tagged-stmt tag-name)))
+    (if entry-id
+        (begin
+          (set! cur-entry entry-id)
+          (print-entry))
+        (write-line "No such entry found"))))
+
+(defcmd (random-untagged)
+  "" "Select a random entry without tag"
+  (let ((entry-id (query fetch-value random-untagged-stmt)))
+    (if entry-id
+        (begin
+          (set! cur-entry entry-id)
+          (print-entry))
+        (write-line "No such entry found"))))
 
 (defcmd (set-entry entry-id)
   "entry-id" "Set current entry"
