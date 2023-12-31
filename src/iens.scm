@@ -47,6 +47,16 @@
 (define vt100-entry-header "\033[34m")
 (define vt100-reset        "\033[0m")
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Command-Line Processing
+
+(define db-filename #f)
+(define replay #f)
+
+(let ((arg-list (command-line-arguments)))
+  (when (>= (length arg-list) 2) (set! replay (cadr arg-list)))
+  (when (>= (length arg-list) 1) (set! db-filename (car arg-list))))
+
 ;;;;;;;;;;;;;
 ;; Tracing
 
@@ -65,10 +75,8 @@
 ;; Persistent Storage
 
 (define db-name
-  (let ((arg-list (command-line-arguments)))
-    (if (>= (length arg-list) 1)
-        (car arg-list)
-        "iens.sqlite")))
+  (if db-filename db-filename "iens.sqlite"))
+
 (define db
   (open-database db-name))
 (write-line (conc "Using database " db-name " with SQLite " library-version))
@@ -530,22 +538,23 @@
 ;; Auto Add
 
 (define (auto-add lines)
-  (trace `(auto-add ,lines))
-  (let loop ((index 0) (urls '()))
-    (let* ((start0 (substring-index-ci "https://" lines index))
-           (start  (if start0 start0
-                       (substring-index-ci "http://" lines index)))
-           (end    (if start
-                       (min (string-length lines)
-                            (substring-index " " lines start)
-                            (substring-index "\n" lines start))
-                       #f)))
-      (cond (start
-              (loop end (cons (substring lines start end) urls)))
-            ((null? urls)
-              (write-line (conc "Warning: no URL found")))
-            (else
-              (for-each (lambda (url) (add-entry url lines)) urls))))))
+  (unless replay
+    (trace `(auto-add ,lines))
+    (let loop ((index 0) (urls '()))
+      (let* ((start0 (substring-index-ci "https://" lines index))
+             (start  (if start0 start0
+                         (substring-index-ci "http://" lines index)))
+             (end    (if start
+                         (min (string-length lines)
+                              (substring-index " " lines start)
+                              (substring-index "\n" lines start))
+                         #f)))
+        (cond (start
+                (loop end (cons (substring lines start end) urls)))
+              ((null? urls)
+                (write-line (conc "Warning: no URL found")))
+              (else
+                (for-each (lambda (url) (add-entry url lines)) urls)))))))
 
 ;;;;;;;;;;;;;;
 ;; Main loop
@@ -565,38 +574,46 @@
 
 (sort! cmd-list (lambda (r1 r2) (string<? (car r1) (car r2))))
 
-(set-signal-handler! signal/int
-                     (lambda _
-                       (cleanup-after-signal!)
-                       (reset-after-signal!)))
-(on-exit reset-terminal!)
-
 (define state 'general)
 (define (prompt)
   (cond ((eqv? state 'general) "> ")
         ((eqv? state 'in-command) "... ")
         (else "??? ")))
-(current-input-port (make-readline-port prompt))
 
-(let main-loop ()
-  (let ((c (peek-char)))
-    (cond ((eof-object? c))
-          ((eqv? c #\()
-            (set! state 'in-command)
-            (handle-exceptions
-              exn
-              (begin
-                (print-error-message exn)
-                (print-call-chain))
-              (eval (read)))
-            (set! state 'general)
-            (main-loop))
-          (else
-            (let data-loop ((acc (list (read-line))))
-              (if (char-ready?)
-                  (data-loop (cons (read-line) acc))
-                  (let ((lines (reverse-string-append
-                                 (map terminate-line acc))))
-                    (when (> (string-length lines) 0)
-                      (auto-add lines))
-                    (main-loop))))))))
+(define (interactive-main)
+  (set-signal-handler! signal/int
+                       (lambda _
+                         (cleanup-after-signal!)
+                         (reset-after-signal!)))
+  (on-exit reset-terminal!)
+  (current-input-port (make-readline-port prompt))
+
+  (let main-loop ()
+    (let ((c (peek-char)))
+      (cond ((eof-object? c))
+            ((eqv? c #\()
+              (set! state 'in-command)
+              (handle-exceptions
+                exn
+                (begin
+                  (print-error-message exn)
+                  (print-call-chain))
+                (eval (read)))
+              (set! state 'general)
+              (main-loop))
+            (else
+              (let data-loop ((acc (list (read-line))))
+                (if (char-ready?)
+                    (data-loop (cons (read-line) acc))
+                    (let ((lines (reverse-string-append
+                                   (map terminate-line acc))))
+                      (when (> (string-length lines) 0)
+                        (auto-add lines))
+                      (main-loop)))))))))
+
+(cond ((not replay)
+        (interactive-main))
+      ((eqv? (string-ref replay 0) #\()
+        (eval (read (open-input-string replay))))
+      (else
+        (load replay)))
