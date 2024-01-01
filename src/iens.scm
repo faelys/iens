@@ -671,7 +671,7 @@
 (define (generate-feed feed-id filename url selector title active-int)
   (let* ((stmt (sql db (string-append "SELECT id,url,type,description,notes,ptime,ctime,mtime FROM entry " selector)))
          (first-row (query fetch-row stmt))
-         (mtime (if (null? first-row) #f (list-ref first-row 6))))
+         (mtime (if (null? first-row) #f (list-ref first-row 7))))
     (cond ((not mtime)
             (when config-verbose
               (write-line (conc "Feed " feed-id " is empty"))))
