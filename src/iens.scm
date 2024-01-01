@@ -23,6 +23,7 @@
         (chicken time)
         (chicken time posix)
         breadline
+        breadline-scheme-completion
         lowdown
         sql-de-lite
         srfi-1
@@ -763,6 +764,32 @@
 
 (sort! cmd-list (lambda (r1 r2) (string<? (car r1) (car r2))))
 
+(define completion-ptr cmd-list)
+(define new-completion #t)
+(define (completer prefix state)
+  (when (zero? state)
+    (set! completion-ptr cmd-list)
+    (set! new-completion #t))
+  (let ((buf (line-buffer)))
+    (cond ((and (>= (string-length buf) 1)
+                (not (eqv? (string-ref buf 0) #\()))
+            #f)
+          ((substring-index " " buf)
+            (let ((other-state (if new-completion 0 state)))
+              (set! new-completion #f)
+              (scheme-completer prefix other-state)))
+          (else
+            (let loop ()
+              (cond ((null? completion-ptr)
+                      #f)
+                    ((starts-with? prefix (caar completion-ptr))
+                      (let ((result (caar completion-ptr)))
+                        (set! completion-ptr (cdr completion-ptr))
+                        result))
+                    (else
+                        (set! completion-ptr (cdr completion-ptr))
+                        (loop))))))))
+
 (define state 'general)
 (define (prompt)
   (cond ((eqv? state 'general) "> ")
@@ -770,10 +797,16 @@
         (else "? ")))
 
 (define (interactive-main)
-  (set-signal-handler! signal/int
-                       (lambda _
-                         (cleanup-after-signal!)
-                         (reset-after-signal!)))
+  (basic-quote-characters-set! "\"|")
+  (completer-word-break-characters-set! "\"\'`;|()[] ")
+  (completer-set! completer)
+  (variable-bind! "blink-matching-paren" "on")
+  (paren-blink-timeout-set! 200000)
+
+  (let ((handler (signal-handler signal/int)))
+    (set-signal-handler! signal/int (lambda (s) (cleanup-after-signal!)
+                                                (reset-after-signal!)
+                                                (handler s))))
   (on-exit reset-terminal!)
   (current-input-port (make-readline-port prompt))
 
