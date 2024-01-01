@@ -1,14 +1,17 @@
 (import (chicken condition)
+        (chicken file)
+        (chicken file posix)
+        (chicken io)
         (chicken process signal)
         (chicken process-context)
-        (chicken io)
         (chicken sort)
         (chicken string)
         (chicken time)
         (chicken time posix)
         breadline
         sql-de-lite
-        srfi-1)
+        srfi-1
+        sxml-serializer)
 
 (define (starts-with? maybe-prefix s)
   (substring=? s maybe-prefix 0 0 (string-length maybe-prefix)))
@@ -105,13 +108,25 @@
                 "ON UPDATE CASCADE ON DELETE CASCADE, "
                 "tag_id REFERENCES tag(id) "
                 "ON UPDATE CASCADE ON DELETE CASCADE);")
+          (conc "CREATE TABLE feed ("
+                "id INTEGER PRIMARY KEY, filename TEXT NOT NULL, "
+                "url TEXT NOT NULL, selector TEXT NOT NULL, "
+                "title TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1);")
+          "CREATE INDEX i_mtime ON entry(mtime);"
+          "CREATE INDEX i_pmtime ON entry(protected,mtime);"
           "CREATE UNIQUE INDEX i_url ON entry(url);"
           "CREATE UNIQUE INDEX i_tag ON tag(name);"
-          "CREATE UNIQUE INDEX i_rel ON tagrel(url_id,tag_id);")))
+          "CREATE UNIQUE INDEX i_rel0 ON tagrel(url_id,tag_id);"
+          "CREATE INDEX i_rel1 ON tagrel(url_id);"
+          "CREATE INDEX i_rel2 ON tagrel(tag_id);")))
 
 ;;;;;;;;;;;;;;;;;;
 ;; Configuration
 
+(define config-author-name #f)
+(define config-author-email #f)
+(define config-author-uri #f)
+(define config-entry-id-prefix "")
 (define config-verbose #f)
 
 (define (get-config key)
@@ -131,7 +146,12 @@
         (else data)))
 
 (define (read-config!)
-  (set! display-trace (= 0 (get-config/default "display-trace" 0)))
+  (set! display-trace  (not (= 0 (get-config/default "display-trace" 0))))
+  (set! config-verbose (not (= 0 (get-config/default "verbose" 0))))
+  (set! config-author-name  (get-config "author-name"))
+  (set! config-author-email (get-config "author-email"))
+  (set! config-author-uri   (get-config "author-uri"))
+  (set! config-entry-id-prefix (get-config/default "entry-id-prefix" ""))
   (let ((trace-filename (get-config "trace")))
     (when trace-port (close-output-port trace-port))
     (set! trace-port
@@ -533,6 +553,120 @@
   "[[timestamp] entry-id] tag-name [tag-name ...]"
   "Disssociates tags from an entry"
   (apply untag* (time-id-strings args)))
+
+;;;;;;;;;;;;;;;;;;;;
+;; Feed Generation
+
+(define activate-feed-stmt
+  (sql db "UPDATE feed SET active=? WHERE id=?;"))
+(define add-feed-stmt
+  (sql db "INSERT INTO feed(filename,url,selector,title) VALUES (?,?,?,?);"))
+(define list-active-feed-stmt
+  (sql db "SELECT * FROM feed WHERE active=1;"))
+(define list-feed-stmt
+  (sql db "SELECT * FROM feed;"))
+(define remove-feed-stmt
+  (sql db "DELETE FROM feed WHERE id=?;"))
+(define select-feed-stmt
+  (sql db "SELECT * FROM feed WHERE id=?;"))
+
+(defcmd (activate-feed feed-id)
+  "feed-id" "Activate the given feed"
+  (trace `(activate-feed ,feed-id))
+  (exec activate-feed-stmt 1 feed-id))
+
+(defcmd (add-feed filename url selector title)
+  "filename url selector title" "Add a new feed"
+  (trace `(add-feed ,filename ,url ,selector ,title))
+  (exec add-feed-stmt filename url selector title)
+  (write-line (conc "Added feed " (last-insert-rowid db))))
+
+(defcmd (disable-feed feed-id)
+  "feed-id" "Disable the given feed"
+  (trace `(disable-feed ,feed-id))
+  (exec activate-feed-stmt 0 feed-id))
+
+(define (feed->sxml id url type descr notes ptime ctime mtime)
+  `(atom:entry
+     (atom:id ,(string-append config-entry-id-prefix (number->string id)))
+     (atom:title ,url)
+     (atom:updated ,(rfc-3339 mtime))
+     (atom:published ,(rfc-3339 (if (null? ptime) ctime ptime)))
+     (atom:link (@ (rel "related") (href ,url)))
+     (atom:content
+       ,@(cond ((null? descr) `(,notes))
+               ((null? type)  `(,descr))
+               (else          `((@ (type ,type)) ,descr))))
+     ,@(query (map-rows (lambda (x) `(atom:category (@ (term ,(car x))))))
+              select-tags-stmt id)))
+
+(define (write-feed stmt mtime title self)
+  (write-string
+    (serialize-sxml
+      `(*TOP* (@ (*NAMESPACES* (atom "http://www.w3.org/2005/Atom")))
+         (*PI* xml "version='1.0' encoding='utf-8'")
+         (atom:feed
+           (atom:title ,title)
+           (atom:author
+             (atom:name ,(if config-author-name
+                             config-author-name
+                             "Unknown Author"))
+             ,@(if config-author-email `((atom:email ,config-author-email)) '())
+             ,@(if config-author-uri `((atom:uri ,config-author-uri)) '()))
+           (atom:id ,self)
+           (atom:link (@ (rel "self") (href ,self)))
+           (atom:updated ,(rfc-3339 mtime))
+           ,@(map (lambda (row) (apply feed->sxml row))
+                  (query fetch-rows stmt))))
+      ns-prefixes: '((*default* . "http://www.w3.org/2005/Atom")))))
+
+(define (generate-feed feed-id filename url selector title active-int)
+  (let* ((stmt (sql db (string-append "SELECT id,url,type,description,notes,ptime,ctime,mtime FROM entry " selector)))
+         (first-row (query fetch-row stmt))
+         (mtime (if (null? first-row) #f (list-ref first-row 6))))
+    (cond ((not mtime)
+            (when config-verbose
+              (write-line (conc "Feed " feed-id " is empty"))))
+          ((and (file-exists? filename)
+                (< mtime (file-modification-time filename)))
+            (when config-verbose
+              (write-line (conc "Feed " feed-id " is already up to date"))))
+          (else
+            (when config-verbose
+              (write-line (conc "Generating feed " feed-id)))
+            (with-output-to-file filename
+              (lambda () (write-feed stmt mtime title url)))))))
+
+(defcmd (generate . args)
+  "[feed-id ...]" "Generate the given feeds, or all active feeds"
+  (let loop ((todo (if (null? args)
+                       (query fetch-all list-active-feed-stmt)
+                       (map (lambda (id) (query fetch select-feed-stmt id))
+                            args))))
+    (unless (null? todo)
+      (apply generate-feed (car todo))
+      (loop (cdr todo)))))
+
+(defcmd (print-feeds)
+  "" "Display all feeds"
+  (query
+    (map-rows*
+      (lambda (id filename url selector title active-int)
+        (write-line (conc (if (= 0 active-int)
+                              (conc "(" id ")")
+                              (conc "#" id))
+                          " "
+                          filename
+                          " - "
+                          title))
+        (write-line (conc "    " url))
+        (write-line (conc "    " selector))))
+    list-feed-stmt))
+
+(defcmd (remove-feed feed-id)
+  "feed-id" "Remove the given feed"
+  (trace `(remove-feed ,feed-id))
+  (exec remove-feed-stmt feed-id))
 
 ;;;;;;;;;;;;;
 ;; Auto Add
