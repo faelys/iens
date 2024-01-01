@@ -23,6 +23,7 @@
         (chicken time)
         (chicken time posix)
         breadline
+        lowdown
         sql-de-lite
         srfi-1
         sxml-serializer)
@@ -491,10 +492,11 @@
         (write-line "No such entry found"))))
 
 (define (guess-type str)
-  (if (and (< 0 (string-length str))
-           (eqv? (string-ref str 0) #\<))
-      "html"
-      "text"))
+  (cond ((null? str) '())
+        ((starts-with? "<" str) "html")
+        ((or (starts-with? " - " str)
+             (starts-with? " + " str)) "markdown-li")
+        (else "text")))
 
 (define (set-descr* mtime entry-id type text)
   (trace `(set-descr ,mtime ,entry-id ,type ,text))
@@ -621,6 +623,20 @@
   (trace `(disable-feed ,feed-id))
   (exec activate-feed-stmt 0 feed-id))
 
+(define (atom-content type descr notes)
+  (cond ((null? descr) `(atom:content ,notes))
+        ((null? type)  `(atom:content ,descr))
+        ((equal? type "markdown-li")
+          (let ((acc (open-output-string))
+                (prev-output (current-output-port)))
+            (current-output-port acc)
+            (let ((result (markdown->html (substring descr 3))))
+              (current-output-port prev-output)
+              (if result
+                  `(atom:content (@ (type "html")) ,(get-output-string acc))
+                  `(atom:content ,descr)))))
+        (else `(atom:content (@ (type ,type)) ,descr))))
+
 (define (feed->sxml id url type descr notes ptime ctime mtime)
   `(atom:entry
      (atom:id ,(string-append config-entry-id-prefix (number->string id)))
@@ -628,10 +644,7 @@
      (atom:updated ,(rfc-3339 mtime))
      (atom:published ,(rfc-3339 (if (null? ptime) ctime ptime)))
      (atom:link (@ (rel "related") (href ,url)))
-     (atom:content
-       ,@(cond ((null? descr) `(,notes))
-               ((null? type)  `(,descr))
-               (else          `((@ (type ,type)) ,descr))))
+     ,(atom-content type descr notes)
      ,@(query (map-rows (lambda (x) `(atom:category (@ (term ,(car x))))))
               select-tags-stmt id)))
 
