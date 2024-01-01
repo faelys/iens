@@ -766,8 +766,8 @@
 (define state 'general)
 (define (prompt)
   (cond ((eqv? state 'general) "> ")
-        ((eqv? state 'in-command) "... ")
-        (else "??? ")))
+        ((eqv? state 'in-command) "… ")
+        (else "? ")))
 
 (define (interactive-main)
   (set-signal-handler! signal/int
