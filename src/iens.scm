@@ -354,6 +354,8 @@
   (sql db "SELECT id,url,notes FROM entry WHERE id NOT IN (SELECT url_id FROM tagrel);"))
 (define select-entry-stmt
   (sql db "SELECT id,url,type,description,notes,protected,ptime,ctime,mtime FROM entry WHERE id=?;"))
+(define set-descr-stmt
+  (sql db "UPDATE entry SET type=?,description=?,mtime=? WHERE id=?;"))
 (define set-notes-stmt
   (sql db "UPDATE entry SET notes=?,mtime=? WHERE id=?;"))
 (define touch-entry-stmt
@@ -487,6 +489,25 @@
           (set! cur-entry entry-id)
           (print-entry))
         (write-line "No such entry found"))))
+
+(define (guess-type str)
+  (if (and (< 0 (string-length str))
+           (eqv? (string-ref str 0) #\<))
+      "html"
+      "text"))
+
+(define (set-descr* mtime entry-id type text)
+  (trace `(set-descr ,mtime ,entry-id ,type ,text))
+  (exec set-descr-stmt type text mtime entry-id))
+
+(defcmd (set-descr first . args)
+  "[[[mtime] entry-id] type] description" "Sets an entry description"
+  (case (length args)
+    ((0) (set-descr* (current-seconds) cur-entry (guess-type first) first))
+    ((1) (set-descr* (current-seconds) cur-entry first (car args)))
+    ((2) (set-descr* (current-seconds) first (car args) (cadr args)))
+    ((3) (set-descr* first (car args) (cadr args) (caddr args)))
+    (else (assert #f "Too many arguments to set-descr " (cons first args)))))
 
 (defcmd (set-entry entry-id)
   "entry-id" "Set current entry"
