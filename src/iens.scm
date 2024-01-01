@@ -68,10 +68,10 @@
 ;; Command-Line Processing
 
 (define db-filename #f)
-(define replay #f)
+(define arg-replay #f)
 
 (let ((arg-list (command-line-arguments)))
-  (when (>= (length arg-list) 2) (set! replay (cadr arg-list)))
+  (when (>= (length arg-list) 2) (set! arg-replay (cadr arg-list)))
   (when (>= (length arg-list) 1) (set! db-filename (car arg-list))))
 
 ;;;;;;;;;;;;;
@@ -707,7 +707,7 @@
 ;; Auto Add
 
 (define (auto-add lines)
-  (unless replay
+  (unless arg-replay
     (trace `(auto-add ,lines))
     (let loop ((index 0) (urls '()))
       (let* ((start0 (substring-index-ci "https://" lines index))
@@ -727,6 +727,13 @@
 
 ;;;;;;;;;;;;;;
 ;; Main loop
+
+(defcmd (replay filename)
+  "filename" "Replay the given file"
+  (let ((old-arg-replay arg-replay))
+    (set! arg-replay #t)
+    (load filename)
+    (set! arg-replay old-arg-replay)))
 
 (defcmd (help)
   "" "Display this help"
@@ -780,9 +787,9 @@
                         (auto-add lines))
                       (main-loop)))))))))
 
-(cond ((not replay)
+(cond ((not arg-replay)
         (interactive-main))
-      ((eqv? (string-ref replay 0) #\()
-        (eval (read (open-input-string replay))))
+      ((eqv? (string-ref arg-replay 0) #\()
+        (eval (read (open-input-string arg-replay))))
       (else
-        (load replay)))
+        (load arg-replay)))
