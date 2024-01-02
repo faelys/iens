@@ -204,7 +204,7 @@
 (define add-tag-stmt
   (sql db "INSERT INTO tag(name) VALUES (?);"))
 (define list-tags-stmt
-  (sql db "SELECT name, auto FROM tag ORDER BY name;"))
+  (sql db "SELECT name,auto,COUNT(tagrel.url_id) FROM tag OUTER LEFT JOIN tagrel ON id = tagrel.tag_id GROUP BY id ORDER BY name;"))
 (define remove-tag-stmt
   (sql db "DELETE FROM tag WHERE name = ?;"))
 (define rename-tag-stmt
@@ -243,8 +243,8 @@
   "" "List available tag, automatic tags are marked with *"
   (query
     (for-each-row*
-      (lambda (name auto)
-        (write-line (conc "  " name (if (= 0 auto) "" "*")))))
+      (lambda (name auto count)
+        (write-line (conc "  " name (if (= 0 auto) " (" "* (") count ")"))))
     list-tags-stmt))
 
 (defcmd (remove-auto-tag name . rest)
