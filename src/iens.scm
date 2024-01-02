@@ -273,8 +273,8 @@
           (write-line (conc "Warning: entry " entry-id " is protected"))
           (begin . form)))))
 
-(define (protect! time entry-id)
-  (trace `(protect! ,time ,entry-id))
+(define (protect! entry-id)
+  (trace `(protect! ,entry-id))
   (exec (sql db "UPDATE entry SET protected=? WHERE id=?;") 1 entry-id))
 
 (define (protect* ptime entry-id)
@@ -292,8 +292,8 @@
         (else
           (protect* (car args) (cadr args)))))
 
-(define (unprotect! time entry-id)
-  (trace `(unprotect! ,time ,entry-id))
+(define (unprotect! entry-id)
+  (trace `(unprotect! ,entry-id))
   (exec (sql db "UPDATE entry SET protected=? WHERE id=?;") 0 entry-id))
 
 (define (unprotect* mtime entry-id)
@@ -310,22 +310,20 @@
         (else
           (unprotect* (car args) (cadr args)))))
 
-(define (without-protection* time entry-id proc)
+(define (without-protection* entry-id proc)
   (if (is-protected? entry-id)
       (begin
-        (unprotect! time entry-id)
+        (unprotect! entry-id)
         (eval proc)
-        (protect! time entry-id))
+        (protect! entry-id))
       (eval proc)))
 
 (defcmd (without-protection! first . args)
-  "[[timestamp] entry-id] '(...)" "Perform updates bypassing protection"
+  "[entry-id] '(...)" "Perform updates bypassing protection"
   (cond ((null? args)
-          (without-protection* (current-seconds) cur-entry first))
+          (without-protection* cur-entry first))
         ((and (null? (cdr args)) (integer? first))
-          (without-protection* (current-seconds) first (car args)))
-        ((and (null? (cddr args)) (integer? first) (integer? (car args)))
-          (without-protection* first (car args) (cadr args)))
+          (without-protection* first (car args)))
         (else (assert #f "Invalid arguments " (cons first args)))))
 
 ;; Entry Management
