@@ -407,7 +407,7 @@
     (trace `(add-notes ,mtime ,entry-id . ,lines))
     (with-transaction db
       (lambda ()
-        (let ((prev-notes (caddr (query fetch-row select-entry-stmt entry-id))))
+        (let ((prev-notes (list-ref (query fetch-row select-entry-stmt entry-id) 4)))
           (unless-protected entry-id
             (exec set-notes-stmt
                   (apply string-append prev-notes
