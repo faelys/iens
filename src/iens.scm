@@ -346,6 +346,8 @@
   (sql db "INSERT INTO entry(url, notes, ctime, mtime) VALUES (?, ?, ?, ?);"))
 (define auto-tag-stmt
   (sql db "INSERT INTO tagrel SELECT ?,id FROM tag WHERE auto = 1;"))
+(define find-entry-stmt
+  (sql db "SELECT id FROM entry WHERE url=?;"))
 (define random-tagged-stmt
   (sql db "SELECT url_id FROM tagrel WHERE tag_id IN (SELECT id FROM tag WHERE name=?) ORDER BY RANDOM() LIMIT 1;"))
 (define random-untagged-stmt
@@ -512,10 +514,19 @@
     ((3) (set-descr* first (car args) (cadr args) (caddr args)))
     (else (assert #f "Too many arguments to set-descr " (cons first args)))))
 
-(defcmd (set-entry entry-id)
-  "entry-id" "Set current entry"
-  (assert (integer? entry-id))
-  (set! cur-entry entry-id))
+(defcmd (set-entry arg)
+  "entry-id|url" "Set current entry"
+  (cond ((integer? arg)
+          (set! cur-entry arg)
+          (when config-verbose (print-entry)))
+        ((string? arg)
+          (let ((id (query fetch-value find-entry-stmt arg)))
+            (if id
+                (begin
+                  (set! cur-entry id)
+                  (when config-verbose (print-entry)))
+                (write-line (conc "No entry found for \"" arg "\"")))))
+        (else (assert #f "Unsupported argument type for " arg))))
 
 (define (touch* mtime entry-id)
   (trace `(touch ,mtime ,entry-id))
