@@ -204,7 +204,7 @@
 (define add-tag-stmt
   (sql db "INSERT INTO tag(name) VALUES (?);"))
 (define list-tags-stmt
-  (sql db "SELECT name, auto FROM tag;"))
+  (sql db "SELECT name, auto FROM tag ORDER BY name;"))
 (define remove-tag-stmt
   (sql db "DELETE FROM tag WHERE name = ?;"))
 (define rename-tag-stmt
@@ -552,7 +552,7 @@
 (define include-tag-stmt
   (sql db "INSERT OR IGNORE INTO tagrel VALUES (?, ?);"))
 (define select-tags-stmt
-  (sql db "SELECT tag.name FROM tagrel OUTER LEFT JOIN tag ON tagrel.tag_id = tag.id WHERE url_id=?;"))
+  (sql db "SELECT tag.name FROM tagrel OUTER LEFT JOIN tag ON tagrel.tag_id = tag.id WHERE url_id=? ORDER BY tag.name;"))
 (define get-tag-id-stmt
   (sql db "SELECT id FROM tag WHERE name = ?;"))
 
