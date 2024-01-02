@@ -774,7 +774,7 @@
       (write-line (conc "    " (caddr row))))
     cmd-list))
 
-(sort! cmd-list (lambda (r1 r2) (string<? (car r1) (car r2))))
+(set! cmd-list (sort! cmd-list (lambda (r1 r2) (string<? (car r1) (car r2)))))
 
 (define completion-ptr cmd-list)
 (define new-completion #t)
