@@ -264,7 +264,7 @@
 (defcmd (rename-tag old-name new-name)
   "old-tag-name new-tag-name" "Rename a tag, preserving associations"
   (trace `(rename-tag ,old-name ,new-name))
-  (exec rename-tag-stmt old-name new-name))
+  (exec rename-tag-stmt new-name old-name))
 
 ;; Entry Protection
 
