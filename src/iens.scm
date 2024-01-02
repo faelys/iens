@@ -569,7 +569,8 @@
               (if tag-id
                   (unless-protected entry-id
                     (exec stmt entry-id tag-id))
-                  (write-line (conc "Unknown tag " (car todo)))))))))
+                  (write-line (conc "Unknown tag " (car todo))))
+              (loop (cdr todo)))))))
   (print-tags entry-id))
 
 (define (tag* mtime entry-id tag-list)
