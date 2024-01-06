@@ -49,7 +49,7 @@
 
 (define (terminate-line line)
   (let ((l (string-length line)))
-    (if (or (= l 0)
+    (if (or (zero? l)
             (eqv? (string-ref line (sub1 l)) #\newline))
         line
         (string-append line "\n"))))
@@ -162,8 +162,8 @@
         (else data)))
 
 (define (read-config!)
-  (set! display-trace  (not (= 0 (get-config/default "display-trace" 0))))
-  (set! config-verbose (not (= 0 (get-config/default "verbose" 0))))
+  (set! display-trace  (not (zero? (get-config/default "display-trace" 0))))
+  (set! config-verbose (not (zero? (get-config/default "verbose" 0))))
   (set! config-author-name  (get-config "author-name"))
   (set! config-author-email (get-config "author-email"))
   (set! config-author-uri   (get-config "author-uri"))
@@ -234,7 +234,7 @@
   (query
     (for-each-row*
       (lambda (name auto count)
-        (write-line (conc "  " name (if (= 0 auto) " (" "* (") count ")"))))
+        (write-line (conc "  " name (if (zero? auto) " (" "* (") count ")"))))
     (sql db "SELECT name,auto,COUNT(tagrel.url_id)
              FROM tag OUTER LEFT JOIN tagrel ON id=tagrel.tag_id
              GROUP BY id ORDER BY name;")))
@@ -261,7 +261,7 @@
 ;; Entry Protection
 
 (define (is-protected? entry-id)
-  (not (= 0
+  (not (zero?
           (query fetch-value
                  (sql db "SELECT protected FROM entry WHERE id=?;")
                  entry-id))))
@@ -702,7 +702,7 @@
   (query
     (map-rows*
       (lambda (id filename url selector title active-int)
-        (write-line (conc (if (= 0 active-int)
+        (write-line (conc (if (zero? active-int)
                               (conc "(" id ")")
                               (conc "#" id))
                           " "
@@ -757,7 +757,7 @@
       (write-line (conc
         "("
         (car row)
-        (if (> (string-length (cadr row)) 0) " " "")
+        (if (zero? (string-length (cadr row))) "" " ")
         (cadr row)
         ")"))
       (write-line (conc "    " (caddr row))))
@@ -772,7 +772,7 @@
     (set! completion-ptr cmd-list)
     (set! new-completion #t))
   (let ((buf (line-buffer)))
-    (cond ((and (>= (string-length buf) 1)
+    (cond ((and (positive? (string-length buf))
                 (not (eqv? (string-ref buf 0) #\()))
             #f)
           ((substring-index " " buf)
@@ -830,7 +830,7 @@
                     (data-loop (cons (read-line) acc))
                     (let ((lines (reverse-string-append
                                    (map terminate-line acc))))
-                      (when (> (string-length lines) 0)
+                      (when (positive? (string-length lines))
                         (auto-add lines))
                       (main-loop)))))))))
 
