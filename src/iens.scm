@@ -109,7 +109,8 @@
   (write-line (conc "Initializing database with schema v" schema-version))
   (for-each
     (lambda (s) (exec (sql db s)))
-    (list "CREATE TABLE config (key TEXT PRIMARY KEY, val);"
+    (list "PRAGMA foreign_keys = ON;"
+          "CREATE TABLE config (key TEXT PRIMARY KEY, val);"
           (conc "INSERT INTO config(key, val) VALUES "
                 "('schema-version'," schema-version ");")
           (conc "CREATE TABLE tag (id INTEGER PRIMARY KEY, "
