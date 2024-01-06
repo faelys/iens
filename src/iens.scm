@@ -709,7 +709,7 @@
       (apply generate-feed (car todo))
       (loop (cdr todo)))))
 
-(defcmd (print-feeds)
+(defcmd (list-feeds)
   "" "Display all feeds"
   (query
     (map-rows*
