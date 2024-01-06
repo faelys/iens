@@ -243,7 +243,7 @@
   (query
     (for-each-row*
       (lambda (name auto count)
-        (write-line (conc "  " name (if (zero? auto) " (" "* (") count ")"))))
+        (write-line (conc name (if (zero? auto) " (" "* (") count ")"))))
     (sql db "SELECT name,auto,COUNT(tagrel.url_id)
              FROM tag OUTER LEFT JOIN tagrel ON id=tagrel.tag_id
              GROUP BY id ORDER BY name;")))
