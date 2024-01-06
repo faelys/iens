@@ -226,7 +226,7 @@
       (exec (sql db "UPDATE tag SET auto=0;"))
       (let loop ((todo tag-list))
         (unless (null? todo)
-          (set-tag-auto name 1)
+          (set-tag-auto (car todo) 1)
           (loop (cdr todo)))))))
 
 (defcmd (list-tags)
