@@ -193,7 +193,7 @@
       (query
         (for-each-row*
           (lambda (key val) (write-line (conc key ": " val))))
-        (sql db "SELECT key,val FROM config;"))
+        (sql db "SELECT key,val FROM config ORDER BY key;"))
       (let loop ((todo args))
         (unless (null? todo)
           (write-line (conc (car todo) ": " (get-config (car todo))))
