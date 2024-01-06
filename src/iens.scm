@@ -311,12 +311,15 @@
           (unprotect* (car args) (cadr args)))))
 
 (define (without-protection* entry-id proc)
-  (if (is-protected? entry-id)
-      (begin
-        (unprotect! entry-id)
-        (eval proc)
-        (protect! entry-id))
-      (eval proc)))
+  (let ((prev-cur-entry-id cur-entry))
+    (set! cur-entry entry-id)
+    (if (is-protected? entry-id)
+        (begin
+          (unprotect! entry-id)
+          (eval proc)
+          (protect! entry-id))
+        (eval proc))
+    (set! cur-entry prev-cur-entry-id)))
 
 (defcmd (without-protection! first . args)
   "[entry-id] '(...)" "Perform updates bypassing protection"
