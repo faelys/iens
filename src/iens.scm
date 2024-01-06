@@ -729,9 +729,12 @@
              (start  (if start0 start0
                          (substring-index-ci "http://" lines index)))
              (end    (if start
-                         (min (string-length lines)
-                              (substring-index " " lines start)
-                              (substring-index "\n" lines start))
+                         (apply min
+                           (filter identity
+                             (list
+                               (string-length lines)
+                               (substring-index " " lines start)
+                               (substring-index "\n" lines start))))
                          #f)))
         (cond (start
                 (loop end (cons (substring lines start end) urls)))
