@@ -105,6 +105,7 @@
 (define db
   (open-database db-name))
 (write-line (conc "Using database " db-name " with SQLite " library-version))
+(exec (sql db "PRAGMA foreign_keys = ON;"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Database Creation/Migration
@@ -115,8 +116,7 @@
   (write-line (conc "Initializing database with schema v" schema-version))
   (for-each
     (lambda (s) (exec (sql db s)))
-    (list "PRAGMA foreign_keys = ON;"
-          "CREATE TABLE config (key TEXT PRIMARY KEY, val);"
+    (list "CREATE TABLE config (key TEXT PRIMARY KEY, val);"
           (conc "INSERT INTO config(key, val) VALUES "
                 "('schema-version'," schema-version ");")
           (conc "CREATE TABLE tag (id INTEGER PRIMARY KEY, "
