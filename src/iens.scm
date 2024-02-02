@@ -415,11 +415,11 @@
       (write-line (conc "Notes:"))
       (write-string notes)))
 
-(define (print-listed-entry-row row)
+(define (print-listed-entry-row id url notes protected)
   (write-line (conc vt100-entry-header
-                    "#" (car row) " - " (cadr row)
+                    "#" id (if (zero? protected) "" "*") " - " url
                     vt100-reset))
-  (write-string (caddr row)))
+  (write-string notes))
 
 (define (print-entry* entry-id)
   (query (for-each-row* print-entry-row)
@@ -439,9 +439,9 @@
 
 (defcmd (list-tagged tag-name . args)
   "tag-name [limit]" "Display entries with the given tag"
-  (query (for-each-row print-listed-entry-row)
+  (query (for-each-row* print-listed-entry-row)
          (sql db "SELECT * FROM
-                    (SELECT id,url,notes FROM entry
+                    (SELECT id,url,notes,protected FROM entry
                       WHERE id IN (SELECT url_id FROM tagrel
                                     WHERE tag_id IN (SELECT id FROM tag
                                                       WHERE name=?))
@@ -452,8 +452,8 @@
 
 (defcmd (list-untagged)
   "" "Display entries without any tag"
-  (query (for-each-row print-listed-entry-row)
-         (sql db "SELECT id,url,notes FROM entry
+  (query (for-each-row* print-listed-entry-row)
+         (sql db "SELECT id,url,notes,protected FROM entry
                    WHERE id NOT IN (SELECT url_id FROM tagrel);")))
 
 (defcmd (print-entry . args)
