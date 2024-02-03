@@ -580,6 +580,18 @@
               (loop (cdr todo)))))))
   (print-tags entry-id))
 
+(define (retag* mtime entry-id tag-list)
+  (trace `(retag ,mtime ,entry-id . ,tag-list))
+  (unless-protected entry-id
+    (exec (sql db "DELETE FROM tagrel WHERE url_id=?;") entry-id)
+    (exec-on-tags (sql db "INSERT OR IGNORE INTO tagrel VALUES (?,?);")
+                  mtime entry-id tag-list)))
+
+(defcmd (retag . args)
+  "[[timestamp] entry-id] tag-name [tag-name ...]"
+  "Overwrite tag list for an entry"
+  (apply retag* (time-id-strings args)))
+
 (define (tag* mtime entry-id tag-list)
   (unless (null? tag-list)
     (trace `(tag ,mtime ,entry-id . ,tag-list))
