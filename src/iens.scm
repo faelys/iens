@@ -499,8 +499,9 @@
 
 (define (set-descr* mtime entry-id type text)
   (trace `(set-descr ,mtime ,entry-id ,type ,text))
-  (exec (sql db "UPDATE entry SET type=?,description=?,mtime=? WHERE id=?;")
-        type text mtime entry-id))
+  (unless-protected entry-id
+    (exec (sql db "UPDATE entry SET type=?,description=?,mtime=? WHERE id=?;")
+          type text mtime entry-id)))
 
 (defcmd (set-descr first . args)
   "[[[mtime] entry-id] type] description" "Sets an entry description"
@@ -566,18 +567,18 @@
 (define (exec-on-tags stmt mtime entry-id tag-list)
   (with-transaction db
     (lambda ()
-      (let loop ((todo tag-list))
-        (if (null? todo)
-            (exec (sql db "UPDATE entry SET mtime=? WHERE id=?;")
-                  mtime entry-id)
-            (let ((tag-id (query fetch-value
-                                 (sql db "SELECT id FROM tag WHERE name=?;")
-                                 (car todo))))
-              (if tag-id
-                  (unless-protected entry-id
-                    (exec stmt entry-id tag-id))
-                  (write-line (conc "Unknown tag " (car todo))))
-              (loop (cdr todo)))))))
+      (unless-protected entry-id
+        (let loop ((todo tag-list))
+          (if (null? todo)
+              (exec (sql db "UPDATE entry SET mtime=? WHERE id=?;")
+                    mtime entry-id)
+              (let ((tag-id (query fetch-value
+                                   (sql db "SELECT id FROM tag WHERE name=?;")
+                                   (car todo))))
+                (if tag-id
+                    (exec stmt entry-id tag-id)
+                    (write-line (conc "Unknown tag " (car todo))))
+                (loop (cdr todo))))))))
   (print-tags entry-id))
 
 (define (retag* mtime entry-id tag-list)
