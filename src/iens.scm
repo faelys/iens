@@ -16,6 +16,7 @@
         (chicken file)
         (chicken file posix)
         (chicken io)
+        (chicken process)
         (chicken process signal)
         (chicken process-context)
         (chicken sort)
@@ -149,8 +150,19 @@
 (define config-author-name #f)
 (define config-author-email #f)
 (define config-author-uri #f)
+(define config-editor #f)
 (define config-entry-id-prefix "")
 (define config-verbose #f)
+
+(define default-editor
+  (let ((term   (get-environment-variable "TERM"))
+        (visual (get-environment-variable "VISUAL"))
+        (editor (get-environment-variable "EDITOR"))
+        (fallback "vi"))
+    (cond
+      ((and visual term (not (equal? "dumb" term))) visual)
+      (editor editor)
+      (else fallback))))
 
 (define (get-config key)
   (query fetch-value (sql db "SELECT val FROM config WHERE key = ?;") key))
@@ -176,6 +188,7 @@
   (set! config-author-name  (get-config "author-name"))
   (set! config-author-email (get-config "author-email"))
   (set! config-author-uri   (get-config "author-uri"))
+  (set! config-editor       (get-config/default "editor" default-editor))
   (set! config-entry-id-prefix (get-config/default "entry-id-prefix" ""))
   (let ((trace-filename (get-config "trace")))
     (when trace-port (close-output-port trace-port))
@@ -614,6 +627,56 @@
   "[[timestamp] entry-id] tag-name [tag-name ...]"
   "Disssociates tags from an entry"
   (apply untag* (time-id-strings args)))
+
+;;;;;;;;;;;;;;;;;;;;
+;; Editor Spawning
+
+(define (edit-descr* entry-id)
+  (let ((file-name (create-temporary-file
+                     (string-append "."
+                       (get-config/default "description-ext" "txt"))))
+        (prev-value
+           (query fetch-value
+                  (sql db "SELECT description FROM entry WHERE id=?;")
+                  entry-id)))
+    (when (and prev-value (not (null? prev-value)))
+      (call-with-output-file file-name
+        (lambda (port) (write-string prev-value #f port))))
+    (when config-editor
+      (process-wait
+        (process-run (string-append config-editor " " (qs file-name)))))
+    (let ((result (call-with-input-file file-name
+                    (lambda (port) (read-string #f port)))))
+      (delete-file file-name)
+      (if (or (zero? (string-length result))
+              (equal? prev-value result))
+          #f
+          result))))
+
+
+(defcmd (edit-descr . args)
+  "[[mtime] entry-id]" "Describe using an external editor"
+  (let ((new-value (case (length args)
+                     ((0) (edit-descr* cur-entry))
+                     ((1) (edit-descr* (car args)))
+                     ((2) (edit-descr* (cadr args)))
+                     (else
+                       (assert #f "Too many arguments to edit-descr " args)))))
+    (when new-value
+      (case (length args)
+        ((0) (set-descr* (current-seconds)
+                         cur-entry
+                         (guess-type new-value)
+                         new-value))
+        ((1) (set-descr* (current-seconds)
+                         (car args)
+                         (guess-type new-value)
+                         new-value))
+        ((2) (set-descr* (car args)
+                         (cadr args)
+                         (guess-type new-value)
+                         new-value))
+        (else (assert #f "Too many arguments to edit-descr " args))))))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;; Feed Generation
