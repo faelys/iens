@@ -412,7 +412,7 @@
   "Append new lines of notes"
   (apply add-notes* (time-id-strings args)))
 
-(define (print-entry-row id url type descr notes protected ptime ctime mtime)
+(define (print-entry-row id url type descr notes protected ptime ctime mtime tags)
   (write-line (conc vt100-entry-header
                     "#" id (if (zero? protected) "" "*") " - " url
                     vt100-reset))
@@ -426,29 +426,16 @@
       (write-string descr))
     (unless (null? notes)
       (write-line (conc "Notes:"))
-      (write-string notes)))
+      (write-string notes))
+    (if (null? tags)
+        (write-line "No tags.")
+        (write-line (string-append "Tags: " tags))))
 
 (define (print-listed-entry-row id url notes protected)
   (write-line (conc vt100-entry-header
                     "#" id (if (zero? protected) "" "*") " - " url
                     vt100-reset))
   (write-string notes))
-
-(define (print-entry* entry-id)
-  (query (for-each-row* print-entry-row)
-         (sql db "SELECT id,url,type,description,notes,
-                         protected,ptime,ctime,mtime
-                  FROM entry WHERE id=?;")
-         entry-id)
-  (write-line
-    (string-intersperse
-      (cons "Tags:"
-        (query (map-rows car)
-               (sql db "SELECT tag.name FROM tagrel
-                        OUTER LEFT JOIN tag ON tagrel.tag_id=tag.id
-                        WHERE url_id=? ORDER BY tag.name;")
-               entry-id))
-      " ")))
 
 (defcmd (list-tagged tag-name . args)
   "tag-name [limit]" "Display entries with the given tag"
@@ -468,6 +455,16 @@
   (query (for-each-row* print-listed-entry-row)
          (sql db "SELECT id,url,notes,protected FROM entry
                    WHERE id NOT IN (SELECT url_id FROM tagrel);")))
+
+(define (print-entry* entry-id)
+  (query (for-each-row* print-entry-row)
+         (sql db "SELECT entry.id,url,type,description,notes,
+                         protected,ptime,ctime,mtime,group_concat(tag.name,' ')
+                  FROM entry
+                  LEFT OUTER JOIN tagrel ON entry.id=tagrel.url_id
+                  LEFT OUTER JOIN tag ON tag.id=tagrel.tag_id
+                  WHERE entry.id=? GROUP BY entry.id;")
+         entry-id))
 
 (defcmd (print-entry . args)
   "[entry-id]" "Display an entry"
