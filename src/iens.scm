@@ -437,6 +437,13 @@
                     vt100-reset))
   (write-string notes))
 
+(defcmd (list-selection str)
+  "\"WHERE ...\"" "Display a custom query as a lit"
+  (query (for-each-row* print-listed-entry-row)
+         (sql/transient db
+           (string-append "SELECT id,url,notes,protected FROM entry "
+                          str ";"))))
+
 (defcmd (list-tagged tag-name . args)
   "tag-name [limit]" "Display entries with the given tag"
   (query (for-each-row* print-listed-entry-row)
@@ -474,6 +481,19 @@
         (unless (null? todo)
           (print-entry* (car todo))
           (loop (cdr todo))))))
+
+(defcmd (print-selection str)
+  "\"WHERE ...\"" "Display a custom query as a lit"
+  (query (for-each-row* print-entry-row)
+         (sql/transient db
+           (string-append
+                 "SELECT entry.id,url,type,description,notes,
+                         protected,ptime,ctime,mtime,group_concat(tag.name,' ')
+                  FROM entry
+                  LEFT OUTER JOIN tagrel ON entry.id=tagrel.url_id
+                  LEFT OUTER JOIN tag ON tag.id=tagrel.tag_id "
+             str
+             " GROUP BY entry.id;"))))
 
 (defcmd (random-tagged tag-name)
   "tag" "Select a random entry with the given tag"
