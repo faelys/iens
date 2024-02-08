@@ -116,7 +116,7 @@
 (when (null? (schema db))
   (write-line (conc "Initializing database with schema v" schema-version))
   (for-each
-    (lambda (s) (exec (sql db s)))
+    (lambda (s) (exec (sql/transient db s)))
     (list "CREATE TABLE config (key TEXT PRIMARY KEY, val);"
           (conc "INSERT INTO config(key, val) VALUES "
                 "('schema-version'," schema-version ");")
