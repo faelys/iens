@@ -858,6 +858,12 @@
     (load filename)
     (set! arg-replay old-arg-replay)))
 
+(define (write-query text)
+   (query (for-each-row (lambda (row) (if (= 1 (length row))
+                                          (write-line (->string (car row)))
+                                          (begin (write row) (newline)))))
+          (sql/transient db text)))
+
 (defcmd (help)
   "" "Display this help"
   (for-each
