@@ -218,6 +218,38 @@
   (exec (sql db "INSERT OR REPLACE INTO config VALUES (?,?);") key val)
   (read-config!))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Configurable Query Selectors
+
+(when (= 1 (get-config "schema-version"))
+  (for-each
+    (lambda (s) (exec (sql/transient db s)))
+    (list "CREATE TABLE IF NOT EXISTS
+             selector (id INTEGER PRIMARY KEY, text TEXT);")))
+
+(defcmd (add-selector text)
+  "\"WHERE …\"" "Creates a pre-defined query selector"
+  (trace `(add-select ,text))
+  (exec (sql db "INSERT INTO selector(text) VALUES (?);") text)
+  (write-line (conc " -> " (last-insert-rowid db))))
+
+(define (get-selector id)
+  (query fetch-value (sql db "SELECT text FROM selector WHERE id=?;") id))
+
+(defcmd (list-selectors)
+  "" "List pre-defined query selectors"
+  (query
+    (for-each-row
+      (lambda (row)
+        (write-line (conc "#" (car row) ": \"" (cadr row) "\""))))
+    (sql db "SELECT id,text FROM selector;")))
+
+(defcmd (set-selector id text)
+  "id \"WHERE …\"" "Sets a pre-defined query selector"
+  (trace `(set-selector ,id ,text))
+  (exec (sql db "INSERT OR REPLACE INTO selector(id,text) VALUES (?,?);")
+        id text))
+
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Database Updates
 
