@@ -470,7 +470,7 @@
   (write-string notes))
 
 (defcmd (list-selection str)
-  "\"WHERE ...\"" "Display a custom query as a lit"
+  "\"WHERE ...\"" "Display a custom query as an entry list"
   (query (for-each-row* print-listed-entry-row)
          (sql/transient db
            (string-append "SELECT id,url,notes,protected FROM entry "
@@ -515,7 +515,7 @@
           (loop (cdr todo))))))
 
 (defcmd (print-selection str)
-  "\"WHERE ...\"" "Display a custom query as a lit"
+  "\"WHERE ...\"" "Display entries from a custom query"
   (query (for-each-row* print-entry-row)
          (sql/transient db
            (string-append
