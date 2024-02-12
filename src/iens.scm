@@ -233,6 +233,15 @@
   (exec (sql db "INSERT INTO selector(text) VALUES (?);") text)
   (write-line (conc " -> " (last-insert-rowid db))))
 
+(define (call-with-selector arg proc)
+  (cond ((string? arg) (proc arg #f))
+        ((number? arg) (let ((selector (get-selector arg)))
+                         (if selector
+                             (proc selector arg)
+                             (write-line
+                               (conc "No selector #" arg " found")))))
+        (else (write-line (conc "Invalid selection argument " arg)))))
+
 (define (get-selector id)
   (query fetch-value (sql db "SELECT text FROM selector WHERE id=?;") id))
 
@@ -469,12 +478,14 @@
                     vt100-reset))
   (write-string notes))
 
-(defcmd (list-selection str)
-  "\"WHERE ...\"" "Display a custom query as an entry list"
-  (query (for-each-row* print-listed-entry-row)
-         (sql/transient db
-           (string-append "SELECT id,url,notes,protected FROM entry "
-                          str ";"))))
+(defcmd (list-selection arg)
+  "\"WHERE ...\"|selector-id" "Display a custom query as an entry list"
+  (call-with-selector arg
+    (lambda (selector id)
+      (query (for-each-row* print-listed-entry-row)
+             ((if id sql sql/transient) db
+               (string-append "SELECT id,url,notes,protected FROM entry "
+                              selector ";"))))))
 
 (defcmd (list-tagged tag-name . args)
   "tag-name [limit]" "Display entries with the given tag"
@@ -514,18 +525,21 @@
           (print-entry* (car todo))
           (loop (cdr todo))))))
 
-(defcmd (print-selection str)
-  "\"WHERE ...\"" "Display entries from a custom query"
-  (query (for-each-row* print-entry-row)
-         (sql/transient db
-           (string-append
-                 "SELECT entry.id,url,type,description,notes,
-                         protected,ptime,ctime,mtime,group_concat(tag.name,' ')
-                  FROM entry
-                  LEFT OUTER JOIN tagrel ON entry.id=tagrel.url_id
-                  LEFT OUTER JOIN tag ON tag.id=tagrel.tag_id "
-             str
-             " GROUP BY entry.id;"))))
+(defcmd (print-selection arg)
+  "\"WHERE ...\"|selector-id" "Display entries from a custom query"
+  (call-with-selector arg
+    (lambda (selector id)
+      (query
+        (for-each-row* print-entry-row)
+        ((if id sql sql/transient) db
+          (string-append
+            "SELECT entry.id,url,type,description,notes,
+                    protected,ptime,ctime,mtime,group_concat(tag.name,' ')
+             FROM entry
+             LEFT OUTER JOIN tagrel ON entry.id=tagrel.url_id
+             LEFT OUTER JOIN tag ON tag.id=tagrel.tag_id "
+            selector
+            " GROUP BY entry.id;"))))))
 
 (defcmd (random-tagged tag-name)
   "tag" "Select a random entry with the given tag"
