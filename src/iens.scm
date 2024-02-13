@@ -478,6 +478,26 @@
                     vt100-reset))
   (write-string notes))
 
+(define (count-selection* text id)
+  (write-line (string-append (if id (conc "#" id ": ") "")
+                             "\"" text "\""))
+  (write-line (conc " -> " (query fetch-value
+                                  ((if id sql sql/transient)
+                                    db
+                                    (string-append
+                                      "SELECT COUNT(id) FROM entry "
+                                      text ";"))))))
+
+(defcmd (count-selection . args)
+  "\"WHERE ...\"|selector-id ..." "Count results of a custom queries"
+  (if (null? args)
+      (query (for-each-row* count-selection*)
+             (sql db "SELECT text,id FROM selector;"))
+      (let loop ((todo args))
+        (unless (null? todo)
+          (call-with-selector (car todo) count-selection*)
+          (loop (cdr todo))))))
+
 (defcmd (list-selection arg)
   "\"WHERE ...\"|selector-id" "Display a custom query as an entry list"
   (call-with-selector arg
