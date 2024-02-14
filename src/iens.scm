@@ -510,15 +510,29 @@
 (defcmd (list-tagged tag-name . args)
   "tag-name [limit]" "Display entries with the given tag"
   (query (for-each-row* print-listed-entry-row)
-         (sql db "SELECT * FROM
-                    (SELECT id,url,notes,protected FROM entry
-                      WHERE id IN (SELECT url_id FROM tagrel
-                                    WHERE tag_id IN (SELECT id FROM tag
-                                                      WHERE name=?))
-                    ORDER BY id DESC LIMIT ?)
-                   ORDER BY id ASC;")
+         (sql db (cond ((or (null? args) (positive? (car args)))
+                         "SELECT * FROM
+                            (SELECT id,url,notes,protected FROM entry
+                              WHERE id IN (SELECT url_id FROM tagrel
+                                            WHERE tag_id IN (SELECT id FROM tag
+                                                              WHERE name=?))
+                            ORDER BY id DESC LIMIT ?)
+                           ORDER BY id ASC;")
+                       ((negative? (car args))
+                         "SELECT id,url,notes,protected FROM entry
+                            WHERE id IN (SELECT url_id FROM tagrel
+                                          WHERE tag_id IN (SELECT id FROM tag
+                                                            WHERE name=?))
+                          ORDER BY id ASC LIMIT ?;")
+                       (else ; (zero? (car args))
+                         "SELECT id,url,notes,protected FROM entry
+                            WHERE id IN (SELECT url_id FROM tagrel
+                                          WHERE tag_id IN (SELECT id FROM tag
+                                                            WHERE name=?))
+                              OR id=?
+                          ORDER BY id ASC;")))
          tag-name
-         (if (null? args) 10 (car args))))
+         (if (null? args) 10 (abs (car args)))))
 
 (defcmd (list-untagged)
   "" "Display entries without any tag"
