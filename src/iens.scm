@@ -655,6 +655,24 @@
         (else
           (touch* (car args) (cadr args)))))
 
+(define (without-mtime* entry-id proc)
+  (let ((prev-entry cur-entry)
+        (prev-mtime (query fetch-value
+                           (sql db "SELECT mtime FROM entry WHERE id=?;")
+                           entry-id)))
+    (set! cur-entry entry-id)
+    (eval proc)
+    (touch* prev-mtime entry-id)
+    (set! cur-entry prev-entry)))
+
+(defcmd (without-mtime! first . args)
+  "[entry-id] '(...)" "Perform updates and restore entry mtime"
+  (cond ((null? args)
+          (without-mtime* cur-entry first))
+        ((and (null? (cdr args)) (integer? first))
+          (without-mtime* first (car args)))
+        (else (assert #f "Invalid arguments " (cons first args)))))
+
 ;; Entry Tagging
 
 (define (print-tags* entry-id)
