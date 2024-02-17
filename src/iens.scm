@@ -956,11 +956,14 @@
     (load filename)
     (set! arg-replay old-arg-replay)))
 
-(define (write-query text)
-   (query (for-each-row (lambda (row) (if (= 1 (length row))
-                                          (write-line (->string (car row)))
-                                          (begin (write row) (newline)))))
-          (sql/transient db text)))
+(define write-each-row
+  (for-each-row
+    (lambda (row) (if (= 1 (length row))
+                      (write-line (->string (car row)))
+                      (begin (write row) (newline))))))
+
+(define (write-query text . args)
+   (apply query write-each-row (sql/transient db text) args))
 
 (defcmd (help)
   "" "Display this help"
