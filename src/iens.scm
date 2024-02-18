@@ -292,15 +292,52 @@
           (set-tag-auto (car todo) 1)
           (loop (cdr todo)))))))
 
-(defcmd (list-tags)
-  "" "List available tag, automatic tags are marked with *"
-  (query
-    (for-each-row*
-      (lambda (name auto count)
-        (write-line (conc name (if (zero? auto) " (" "* (") count ")"))))
-    (sql db "SELECT name,auto,COUNT(tagrel.url_id)
-             FROM tag OUTER LEFT JOIN tagrel ON id=tagrel.tag_id
-             GROUP BY id ORDER BY name;")))
+(define (n-split l n)
+  (let loop ((todo-l l) (todo-n n) (acc '()))
+    (if (or (zero? todo-n) (null? todo-l))
+        (reverse acc)
+        (let ((chunk-size (ceiling (/ (length todo-l) todo-n))))
+          (loop (drop todo-l chunk-size)
+                (sub1 todo-n)
+                (cons (take todo-l chunk-size) acc))))))
+
+(define (expand-cols cols)
+  (let loop ((todo cols) (acc '()))
+    (if (> (length todo) 1)
+        (loop
+          (cons (append (cadr todo)
+                        (make-list (- (length (car todo)) (length (cadr todo)))
+                                   ""))
+                (cddr todo))
+          (let ((width (apply max (map string-length (car todo)))))
+            (cons
+              (append
+                (map (lambda (s t)
+                       (string-append
+                         s
+                         (make-string (- width -2 (string-length s))
+                                      #\space)))
+                     (car todo)
+                     (cadr todo))
+                (drop (car todo) (length (cadr todo))))
+              acc)))
+        (reverse (append todo acc)))))
+
+(defcmd (list-tags #!optional (cols 1))
+  "[n-columns]" "List available tag, automatic tags are marked with *"
+  (apply for-each
+         (lambda row
+           (write-line (apply string-append row)))
+         (expand-cols
+           (n-split
+             (query
+               (map-rows*
+                 (lambda (name auto count)
+                   (conc name (if (zero? auto) " (" "* (") count ")")))
+               (sql db "SELECT name,auto,COUNT(tagrel.url_id) AS cnt
+                        FROM tag OUTER LEFT JOIN tagrel ON id=tagrel.tag_id
+                        GROUP BY id ORDER BY name;"))
+             cols))))
 
 (defcmd (remove-auto-tag name . rest)
   "[tag-name ...]" "Set tags as not automatic"
