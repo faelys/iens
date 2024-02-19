@@ -323,8 +323,9 @@
               acc)))
         (reverse (append todo acc)))))
 
-(defcmd (list-tags #!optional (cols 1))
-  "[n-columns]" "List available tag, automatic tags are marked with *"
+(defcmd (list-tags #!optional (cols 1) (threshold 0))
+  "[n-columns [min-count]]"
+  "List available tag, automatic tags are marked with *"
   (apply for-each
          (lambda row
            (write-line (apply string-append row)))
@@ -336,7 +337,8 @@
                    (conc name (if (zero? auto) " (" "* (") count ")")))
                (sql db "SELECT name,auto,COUNT(tagrel.url_id) AS cnt
                         FROM tag OUTER LEFT JOIN tagrel ON id=tagrel.tag_id
-                        GROUP BY id ORDER BY name;"))
+                        GROUP BY id HAVING cnt >= ? ORDER BY name;")
+               threshold)
              cols))))
 
 (defcmd (remove-auto-tag name . rest)
