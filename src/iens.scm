@@ -152,6 +152,7 @@
 (define config-author-uri #f)
 (define config-editor #f)
 (define config-entry-id-prefix "")
+(define config-list-tagged-count 0)
 (define config-verbose #f)
 
 (define default-editor
@@ -190,6 +191,7 @@
   (set! config-author-uri   (get-config "author-uri"))
   (set! config-editor       (get-config/default "editor" default-editor))
   (set! config-entry-id-prefix (get-config/default "entry-id-prefix" ""))
+  (set! config-list-tagged-count (get-config/default "list-tagged-count" 0))
   (let ((trace-filename (get-config "trace")))
     (when trace-port (close-output-port trace-port))
     (set! trace-port
@@ -546,10 +548,10 @@
                (string-append "SELECT id,url,notes,protected FROM entry "
                               selector ";"))))))
 
-(defcmd (list-tagged tag-name . args)
+(defcmd (list-tagged tag-name #!optional (count config-list-tagged-count))
   "tag-name [limit]" "Display entries with the given tag"
   (query (for-each-row* print-listed-entry-row)
-         (sql db (cond ((or (null? args) (positive? (car args)))
+         (sql db (cond ((positive? count)
                          "SELECT * FROM
                             (SELECT id,url,notes,protected FROM entry
                               WHERE id IN (SELECT url_id FROM tagrel
@@ -557,13 +559,13 @@
                                                               WHERE name=?))
                             ORDER BY id DESC LIMIT ?)
                            ORDER BY id ASC;")
-                       ((negative? (car args))
+                       ((negative? count)
                          "SELECT id,url,notes,protected FROM entry
                             WHERE id IN (SELECT url_id FROM tagrel
                                           WHERE tag_id IN (SELECT id FROM tag
                                                             WHERE name=?))
                           ORDER BY id ASC LIMIT ?;")
-                       (else ; (zero? (car args))
+                       (else ; (zero? count)
                          "SELECT id,url,notes,protected FROM entry
                             WHERE id IN (SELECT url_id FROM tagrel
                                           WHERE tag_id IN (SELECT id FROM tag
@@ -571,7 +573,7 @@
                               OR id=?
                           ORDER BY id ASC;")))
          tag-name
-         (if (null? args) 10 (abs (car args)))))
+         (abs count)))
 
 (defcmd (list-untagged)
   "" "Display entries without any tag"
