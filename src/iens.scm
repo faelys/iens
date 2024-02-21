@@ -415,15 +415,17 @@
           (unprotect* (car args) (cadr args)))))
 
 (define (without-protection* entry-id proc)
-  (let ((prev-cur-entry-id cur-entry))
-    (set! cur-entry entry-id)
-    (if (is-protected? entry-id)
-        (begin
-          (unprotect! entry-id)
-          (eval proc)
-          (protect! entry-id))
-        (eval proc))
-    (set! cur-entry prev-cur-entry-id)))
+  (if (or (procedure? proc) (list? proc))
+      (let ((prev-cur-entry-id cur-entry))
+        (set! cur-entry entry-id)
+        (if (is-protected? entry-id)
+            (begin
+              (unprotect! entry-id)
+              (if (procedure? proc) (proc) (eval proc))
+              (protect! entry-id))
+            (proc))
+        (set! cur-entry prev-cur-entry-id))
+      (write-line (conc "Invalid procedure " proc))))
 
 (defcmd (without-protection! first . args)
   "[entry-id] '(...)" "Perform updates bypassing protection"
@@ -697,14 +699,16 @@
           (touch* (car args) (cadr args)))))
 
 (define (without-mtime* entry-id proc)
-  (let ((prev-entry cur-entry)
-        (prev-mtime (query fetch-value
-                           (sql db "SELECT mtime FROM entry WHERE id=?;")
-                           entry-id)))
-    (set! cur-entry entry-id)
-    (eval proc)
-    (touch* prev-mtime entry-id)
-    (set! cur-entry prev-entry)))
+  (if (or (procedure? proc) (list? proc))
+      (let ((prev-entry cur-entry)
+            (prev-mtime (query fetch-value
+                               (sql db "SELECT mtime FROM entry WHERE id=?;")
+                               entry-id)))
+        (set! cur-entry entry-id)
+        (if (procedure? proc) (proc) (eval proc))
+        (touch* prev-mtime entry-id)
+        (set! cur-entry prev-entry))
+      (write-line (conc "Invalid procedure " proc))))
 
 (defcmd (without-mtime! first . args)
   "[entry-id] '(...)" "Perform updates and restore entry mtime"
