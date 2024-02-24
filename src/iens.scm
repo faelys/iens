@@ -423,7 +423,7 @@
               (unprotect! entry-id)
               (if (procedure? proc) (proc) (eval proc))
               (protect! entry-id))
-            (proc))
+            (if (procedure? proc) (proc) (eval proc)))
         (set! cur-entry prev-cur-entry-id))
       (write-line (conc "Invalid procedure " proc))))
 
