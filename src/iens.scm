@@ -795,21 +795,33 @@
   (let ((file-name (create-temporary-file
                      (string-append "."
                        (get-config/default "description-ext" "txt"))))
-        (prev-value
-           (query fetch-value
-                  (sql db "SELECT description FROM entry WHERE id=?;")
+        (fields
+           (query fetch-row
+                  (sql db "SELECT description,notes FROM entry WHERE id=?;")
                   entry-id)))
-    (when (and prev-value (not (null? prev-value)))
+    (when fields
       (call-with-output-file file-name
-        (lambda (port) (write-string prev-value #f port))))
+        (lambda (port)
+          (unless (null? (car fields))
+            (write-string (car fields) #f port))
+          (unless (null? (cadr fields))
+            (write-string "-+-+-\n" #f port)
+            (write-string (cadr fields) #f port)))))
     (when config-editor
       (process-wait
         (process-run (string-append config-editor " " (qs file-name)))))
     (let ((result (call-with-input-file file-name
-                    (lambda (port) (read-string #f port)))))
+                    (lambda (port)
+                      (let* ((text (read-string #f port))
+                             (end  (substring-index-ci "-+-+-\n" text)))
+                        (if end
+                            (substring text 0 end)
+                            text))))))
       (delete-file file-name)
       (if (or (zero? (string-length result))
-              (equal? prev-value result))
+              (equal? (if (or (null? fields) (null? (car fields)))
+                          "" (car fields))
+                      result))
           #f
           result))))
 
