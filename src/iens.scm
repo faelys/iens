@@ -853,34 +853,26 @@
 ;;;;;;;;;;;;;;;;;;;;
 ;; Feed Generation
 
-(define activate-feed-stmt
-  (sql db "UPDATE feed SET active=? WHERE id=?;"))
-(define add-feed-stmt
-  (sql db "INSERT INTO feed(filename,url,selector,title) VALUES (?,?,?,?);"))
-(define list-active-feed-stmt
-  (sql db "SELECT * FROM feed WHERE active=1;"))
-(define list-feed-stmt
-  (sql db "SELECT * FROM feed;"))
-(define remove-feed-stmt
-  (sql db "DELETE FROM feed WHERE id=?;"))
-(define select-feed-stmt
-  (sql db "SELECT * FROM feed WHERE id=?;"))
+(define (set-feed-active id n)
+  (exec (sql db "UPDATE feed SET active=? WHERE id=?;") n id))
 
 (defcmd (activate-feed feed-id)
   "feed-id" "Activate the given feed"
   (trace `(activate-feed ,feed-id))
-  (exec activate-feed-stmt 1 feed-id))
+  (set-feed-active feed-id 1))
 
 (defcmd (add-feed filename url selector title)
   "filename url selector title" "Add a new feed"
   (trace `(add-feed ,filename ,url ,selector ,title))
-  (exec add-feed-stmt filename url selector title)
+  (exec (sql db
+             "INSERT INTO feed(filename,url,selector,title) VALUES (?,?,?,?);")
+        filename url selector title)
   (write-line (conc "Added feed " (last-insert-rowid db))))
 
 (defcmd (disable-feed feed-id)
   "feed-id" "Disable the given feed"
   (trace `(disable-feed ,feed-id))
-  (exec activate-feed-stmt 0 feed-id))
+  (set-feed-active feed-id 0))
 
 (define (atom-content type descr notes)
   (cond ((null? descr) `(atom:content ,notes))
@@ -930,7 +922,7 @@
                   (query fetch-rows stmt))))
       ns-prefixes: '((*default* . "http://www.w3.org/2005/Atom")))))
 
-(define (generate-feed feed-id filename url selector title active-int)
+(define (generate-feed feed-id filename url selector title)
   (let* ((stmt (sql db (string-append "SELECT id,url,type,description,notes,ptime,ctime,mtime FROM entry " selector)))
          (first-row (query fetch-row stmt))
          (mtime (if (null? first-row) #f (list-ref first-row 7))))
@@ -950,8 +942,14 @@
 (defcmd (generate . args)
   "[feed-id ...]" "Generate the given feeds, or all active feeds"
   (let loop ((todo (if (null? args)
-                       (query fetch-all list-active-feed-stmt)
-                       (map (lambda (id) (query fetch select-feed-stmt id))
+                       (query fetch-all
+                              (sql db "SELECT id,filename,url,selector,active
+                                       FROM feed WHERE active=1;"))
+                       (map (lambda (id)
+                              (query fetch
+                                (sql db "SELECT id,filename,url,selector,active
+                                         FROM feed WHERE id=?;")
+                                id))
                             args))))
     (unless (null? todo)
       (apply generate-feed (car todo))
@@ -971,12 +969,13 @@
                           title))
         (write-line (conc "    " url))
         (write-line (conc "    " selector))))
-    list-feed-stmt))
+    (sql db "SELECT id,filename,url,selector,title,active FROM feed;")))
 
 (defcmd (remove-feed feed-id)
   "feed-id" "Remove the given feed"
   (trace `(remove-feed ,feed-id))
-  (exec remove-feed-stmt feed-id))
+  (exec (sql db "DELETE FROM feed WHERE id=?;") feed-id))
+
 
 ;;;;;;;;;;;;;
 ;; Auto Add
