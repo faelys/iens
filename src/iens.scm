@@ -111,31 +111,28 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Database Creation/Migration
 
-(define schema-version 1)
-
 (when (null? (schema db))
-  (write-line (conc "Initializing database with schema v" schema-version))
+  (write-line (conc "Initializing database with schema v1"))
   (for-each
     (lambda (s) (exec (sql/transient db s)))
     (list "CREATE TABLE config (key TEXT PRIMARY KEY, val);"
-          (conc "INSERT INTO config(key, val) VALUES "
-                "('schema-version'," schema-version ");")
-          (conc "CREATE TABLE tag (id INTEGER PRIMARY KEY, "
-                "name TEXT NOT NULL, auto INTEGER DEFAULT 0);")
-          (conc "CREATE TABLE entry (id INTEGER PRIMARY KEY, "
-                "url TEXT NOT NULL, type TEXT, description TEXT, notes TEXT, "
-                "protected INTEGER DEFAULT 0, ptime INTEGER, "
-                "ctime INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP, "
-                "mtime INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP);")
-          (conc "CREATE TABLE tagrel "
-                "(url_id REFERENCES entry(id) "
-                "ON UPDATE CASCADE ON DELETE CASCADE, "
-                "tag_id REFERENCES tag(id) "
-                "ON UPDATE CASCADE ON DELETE CASCADE);")
-          (conc "CREATE TABLE feed ("
-                "id INTEGER PRIMARY KEY, filename TEXT NOT NULL, "
-                "url TEXT NOT NULL, selector TEXT NOT NULL, "
-                "title TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1);")
+          "INSERT INTO config(key, val) VALUES ('schema-version', 1);"
+          "CREATE TABLE tag (id INTEGER PRIMARY KEY,
+                             name TEXT NOT NULL,
+                             auto INTEGER DEFAULT 0);"
+          "CREATE TABLE entry (id INTEGER PRIMARY KEY,
+             url TEXT NOT NULL, type TEXT, description TEXT, notes TEXT,
+             protected INTEGER DEFAULT 0, ptime INTEGER,
+             ctime INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
+             mtime INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP);"
+          "CREATE TABLE tagrel (url_id REFERENCES entry(id)
+                                  ON UPDATE CASCADE ON DELETE CASCADE,
+                                tag_id REFERENCES tag(id)
+                                  ON UPDATE CASCADE ON DELETE CASCADE);"
+          "CREATE TABLE feed (id INTEGER PRIMARY KEY, filename TEXT NOT NULL,
+                              url TEXT NOT NULL, selector TEXT NOT NULL,
+                              title TEXT NOT NULL,
+                              active INTEGER NOT NULL DEFAULT 1);"
           "CREATE INDEX i_mtime ON entry(mtime);"
           "CREATE INDEX i_pmtime ON entry(protected,mtime);"
           "CREATE UNIQUE INDEX i_url ON entry(url);"
