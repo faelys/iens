@@ -108,6 +108,9 @@
 (write-line (conc "Using database " db-name " with SQLite " library-version))
 (exec (sql db "PRAGMA foreign_keys = ON;"))
 
+(define (db-version)
+  (query fetch-value (sql db "PRAGMA user_version;")))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Database Creation/Migration
 
@@ -116,7 +119,6 @@
   (for-each
     (lambda (s) (exec (sql/transient db s)))
     (list "CREATE TABLE config (key TEXT PRIMARY KEY, val);"
-          "INSERT INTO config(key, val) VALUES ('schema-version', 1);"
           "CREATE TABLE tag (id INTEGER PRIMARY KEY,
                              name TEXT NOT NULL,
                              auto INTEGER DEFAULT 0);"
@@ -133,13 +135,28 @@
                               url TEXT NOT NULL, selector TEXT NOT NULL,
                               title TEXT NOT NULL,
                               active INTEGER NOT NULL DEFAULT 1);"
+          "CREATE TABLE selector (id INTEGER PRIMARY KEY, text TEXT);"
           "CREATE INDEX i_mtime ON entry(mtime);"
           "CREATE INDEX i_pmtime ON entry(protected,mtime);"
           "CREATE UNIQUE INDEX i_url ON entry(url);"
           "CREATE UNIQUE INDEX i_tag ON tag(name);"
           "CREATE UNIQUE INDEX i_rel0 ON tagrel(url_id,tag_id);"
           "CREATE INDEX i_rel1 ON tagrel(url_id);"
-          "CREATE INDEX i_rel2 ON tagrel(tag_id);")))
+          "CREATE INDEX i_rel2 ON tagrel(tag_id);"
+          "PRAGMA user_version = 1;")))
+
+(when (= 0 (db-version))
+  (assert (= 1 (query fetch-value
+                      (sql db "SELECT val FROM config WHERE key = ?;")
+                      "schema-version")))
+  (for-each
+    (lambda (s) (exec (sql/transient db s)))
+    (list "CREATE TABLE IF NOT EXISTS
+             selector (id INTEGER PRIMARY KEY, text TEXT);"
+          "DELETE FROM config WHERE key='schema-version';"
+          "PRAGMA user_version = 1;")))
+
+(assert (= 1 (db-version)))
 
 ;;;;;;;;;;;;;;;;;;
 ;; Configuration
@@ -219,12 +236,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Configurable Query Selectors
-
-(when (= 1 (get-config "schema-version"))
-  (for-each
-    (lambda (s) (exec (sql/transient db s)))
-    (list "CREATE TABLE IF NOT EXISTS
-             selector (id INTEGER PRIMARY KEY, text TEXT);")))
 
 (defcmd (add-selector text)
   "\"WHERE …\"" "Creates a pre-defined query selector"
