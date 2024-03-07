@@ -281,6 +281,50 @@
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Database Updates
 
+;; Feed Management
+
+(define (set-feed-active id n)
+  (exec (sql db "UPDATE feed SET active=? WHERE id=?;") n id))
+
+(defcmd (activate-feed feed-id)
+  "feed-id" "Activate the given feed"
+  (trace `(activate-feed ,feed-id))
+  (set-feed-active feed-id 1))
+
+(defcmd (add-feed filename url selector title)
+  "filename url selector title" "Add a new feed"
+  (trace `(add-feed ,filename ,url ,selector ,title))
+  (exec (sql db
+             "INSERT INTO feed(filename,url,selector,title) VALUES (?,?,?,?);")
+        filename url selector title)
+  (write-line (conc "Added feed " (last-insert-rowid db))))
+
+(defcmd (disable-feed feed-id)
+  "feed-id" "Disable the given feed"
+  (trace `(disable-feed ,feed-id))
+  (set-feed-active feed-id 0))
+
+(defcmd (list-feeds)
+  "" "Display all feeds"
+  (query
+    (map-rows*
+      (lambda (id filename url selector title active-int)
+        (write-line (conc (if (zero? active-int)
+                              (conc "(" id ")")
+                              (conc "#" id))
+                          " "
+                          filename
+                          " - "
+                          title))
+        (write-line (conc "    " url))
+        (write-line (conc "    " selector))))
+    (sql db "SELECT id,filename,url,selector,title,active FROM feed;")))
+
+(defcmd (remove-feed feed-id)
+  "feed-id" "Remove the given feed"
+  (trace `(remove-feed ,feed-id))
+  (exec (sql db "DELETE FROM feed WHERE id=?;") feed-id))
+
 ;; Tag Management
 
 (define (set-tag-auto name auto)
@@ -870,27 +914,6 @@
 ;;;;;;;;;;;;;;;;;;;;
 ;; Feed Generation
 
-(define (set-feed-active id n)
-  (exec (sql db "UPDATE feed SET active=? WHERE id=?;") n id))
-
-(defcmd (activate-feed feed-id)
-  "feed-id" "Activate the given feed"
-  (trace `(activate-feed ,feed-id))
-  (set-feed-active feed-id 1))
-
-(defcmd (add-feed filename url selector title)
-  "filename url selector title" "Add a new feed"
-  (trace `(add-feed ,filename ,url ,selector ,title))
-  (exec (sql db
-             "INSERT INTO feed(filename,url,selector,title) VALUES (?,?,?,?);")
-        filename url selector title)
-  (write-line (conc "Added feed " (last-insert-rowid db))))
-
-(defcmd (disable-feed feed-id)
-  "feed-id" "Disable the given feed"
-  (trace `(disable-feed ,feed-id))
-  (set-feed-active feed-id 0))
-
 (define (atom-content type descr notes)
   (cond ((null? descr) `(atom:content ,notes))
         ((null? type)  `(atom:content ,descr))
@@ -971,27 +994,6 @@
     (unless (null? todo)
       (apply generate-feed (car todo))
       (loop (cdr todo)))))
-
-(defcmd (list-feeds)
-  "" "Display all feeds"
-  (query
-    (map-rows*
-      (lambda (id filename url selector title active-int)
-        (write-line (conc (if (zero? active-int)
-                              (conc "(" id ")")
-                              (conc "#" id))
-                          " "
-                          filename
-                          " - "
-                          title))
-        (write-line (conc "    " url))
-        (write-line (conc "    " selector))))
-    (sql db "SELECT id,filename,url,selector,title,active FROM feed;")))
-
-(defcmd (remove-feed feed-id)
-  "feed-id" "Remove the given feed"
-  (trace `(remove-feed ,feed-id))
-  (exec (sql db "DELETE FROM feed WHERE id=?;") feed-id))
 
 
 ;;;;;;;;;;;;;
