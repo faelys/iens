@@ -308,7 +308,7 @@
   "" "Display all feeds"
   (query
     (map-rows*
-      (lambda (id filename url selector title active-int)
+      (lambda (id filename url selector title active-int mtime)
         (write-line (conc (if (zero? active-int)
                               (conc "(" id ")")
                               (conc "#" id))
@@ -317,13 +317,19 @@
                           " - "
                           title))
         (write-line (conc "    " url))
-        (write-line (conc "    " selector))))
-    (sql db "SELECT id,filename,url,selector,title,active FROM feed;")))
+        (write-line (conc "    " selector))
+        (unless (null? mtime)
+          (write-line (conc "    Updated " (rfc-3339 mtime))))))
+    (sql db "SELECT id,filename,url,selector,title,active,mtime FROM feed;")))
 
 (defcmd (remove-feed feed-id)
   "feed-id" "Remove the given feed"
   (trace `(remove-feed ,feed-id))
   (exec (sql db "DELETE FROM feed WHERE id=?;") feed-id))
+
+(define (touch-feed mtime feed-id)
+  (trace `(touch-feed ,mtime ,feed-id))
+  (exec (sql db "UPDATE feed SET mtime=? WHERE id=?;") mtime feed-id))
 
 ;; Tag Management
 
