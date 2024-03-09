@@ -331,6 +331,92 @@
   (trace `(touch-feed ,mtime ,feed-id))
   (exec (sql db "UPDATE feed SET mtime=? WHERE id=?;") mtime feed-id))
 
+;; Feed Caching
+
+(define (build-signature selector)
+  (query fetch-rows
+         (sql db (string-append "SELECT id,mtime FROM entry " selector ";"))))
+
+(define (car< a b) (< (car a) (car b)))
+
+(define (diff-signature old-sig new-sig)
+  (let loop ((old    (sort old-sig car<))
+             (new    (sort new-sig car<))
+             (result '()))
+    (cond ((and (null? old) (null? new))
+              result)
+          ((null? old)
+              (loop old
+                    (cdr new)
+                    (cons `(add ,@(car new)) result)))
+          ((null? new)
+              (loop (cdr old)
+                    new
+                    (cons `(del ,@(car old)) result)))
+          ((equal? (car new) (car old))
+              (loop (cdr old)
+                    (cdr new)
+                    result))
+          ((= (caar new) (caar old))
+              (loop (cdr old)
+                    (cdr new)
+                    (cons `(chg ,@(car old) ,(cadar new)) result)))
+          ((< (caar new) (caar old))
+              (loop old
+                    (cdr new)
+                    (cons `(add ,@(car new)) result)))
+          ((> (caar new) (caar old))
+              (loop (cdr old)
+                    new
+                    (cons `(del ,@(car old)) result)))
+          (else (assert #f "Should be unreachable")))))
+
+(define (write-diff sig-diff)
+  (for-each
+    (lambda (hunk)
+      (cond ((eqv? (car hunk) 'add)
+              (write-line (conc "    added item #" (cadr hunk)
+                                " at " (rfc-3339 (caddr hunk)))))
+            ((eqv? (car hunk) 'del)
+              (write-line (conc "    removed item #" (cadr hunk)
+                                " at " (rfc-3339 (caddr hunk)))))
+            ((eqv? (car hunk) 'chg)
+              (write-line (conc "    updated item #" (cadr hunk)
+                                ": " (rfc-3339 (caddr hunk))
+                                " → " (rfc-3339 (cadddr hunk)))))
+          (else (assert #f "Should be unreachable"))))
+    sig-diff))
+
+(define feed-cache
+  (query (map-rows* (lambda (id selector)
+                            (cons id (build-signature selector))))
+         (sql db "SELECT id,selector FROM feed WHERE active=1;")))
+
+(define (check-feed* id)
+  (let ((new (query fetch-value
+                    (sql db "SELECT selector FROM feed WHERE id=?;")
+                    id))
+        (old (alist-ref id feed-cache = '())))
+    (cond ((and (not new) (null? old))
+            (write-line (conc "Feed #" id " does not exist")))
+          ((not new)
+            (write-line (conc "Feed #" id " does not exist anymore")))
+          ((null? old)
+            (write-line (conc "Feed #" id " is not cached")))
+          (else
+            (let ((sig-diff (diff-signature old (build-signature new))))
+              (if (null? sig-diff)
+                  (write-line (conc "Feed #" id " has not changed"))
+                  (write-line (conc "Feed #" id " was modified:")))
+              (write-diff sig-diff))))))
+
+(defcmd (check-feed . args)
+  "[feed-id ...]" "Check the cache for the given feeds, or all active feeds"
+  (for-each check-feed*
+    (if (null? args)
+        (query fetch-column (sql db "SELECT id FROM feed WHERE active=1;"))
+        args)))
+
 ;; Tag Management
 
 (define (set-tag-auto name auto)
