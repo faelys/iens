@@ -391,6 +391,7 @@
   (query (map-rows* (lambda (id selector)
                             (cons id (build-signature selector))))
          (sql db "SELECT id,selector FROM feed WHERE active=1;")))
+(define dirty-feeds '())
 
 (define (check-feed* id)
   (let ((new (query fetch-value
@@ -416,6 +417,36 @@
     (if (null? args)
         (query fetch-column (sql db "SELECT id FROM feed WHERE active=1;"))
         args)))
+
+(define (update-feed-cache* mtime id)
+  (let ((data (query fetch-row
+                     (sql db "SELECT mtime,selector FROM feed WHERE id=?;")
+                     id))
+        (old-sig (alist-ref id feed-cache = '())))
+    (if (null? data)
+        (begin
+          (write-line (conc "Feed #" id " does not exist"))
+          #f)
+        (let* ((new-sig (build-signature (cadr data)))
+               (changed (not (equal? old-sig new-sig))))
+          (when changed
+            (when (or (null? (car data))
+                      (> mtime (car data)))
+              (touch-feed mtime id))
+            (when config-verbose
+              (write-line (conc "Marking feed " id " as dirty:"))
+              (write-diff (diff-signature old-sig new-sig)))
+            (unless (any (cut = id <>) dirty-feeds)
+              (set! dirty-feeds (cons id dirty-feeds)))
+            (set! feed-cache (alist-update! id new-sig feed-cache =)))
+          changed))))
+
+(define (update-feed-cache mtime . id-list)
+  (filter
+    (cut update-feed-cache* mtime <>)
+    (if (null? id-list)
+        (query fetch-column (sql db "SELECT id FROM feed WHERE active=1;"))
+        id-list)))
 
 ;; Tag Management
 
@@ -538,7 +569,8 @@
   (trace `(protect ,ptime ,entry-id))
   (unless-protected entry-id
      (exec (sql db "UPDATE entry SET protected=1,ptime=? WHERE id=?;")
-           ptime entry-id)))
+           ptime entry-id)
+     (update-feed-cache ptime)))
 
 (defcmd (protect . args)
   "[timestamp] [entry-id]" "Protect entries from modification"
@@ -556,7 +588,8 @@
 (define (unprotect* mtime entry-id)
   (trace `(unprotect ,mtime ,entry-id))
   (exec (sql db "UPDATE entry SET protected=0,ptime=NULL,mtime=? WHERE id=?;")
-        mtime entry-id))
+        mtime entry-id)
+  (update-feed-cache mtime))
 
 (defcmd (unprotect . args)
   "[timestamp] [entry-id]" "Unprotect entries from modification"
@@ -617,7 +650,8 @@
                 new-id)
           new-id)))))
     (set! cur-entry new-id)
-    (write-line (conc "Added " new-id))))
+    (write-line (conc "Added " new-id)))
+  (update-feed-cache mtime))
 
 (defcmd (add-entry first second . rest)
   "[timestamp] URL note-line [note-line ...]" "Create a new entry"
@@ -642,7 +676,8 @@
                   (apply string-append prev-notes
                     (map terminate-line lines))
                   mtime
-                  entry-id)))))))
+                  entry-id))))))
+  (update-feed-cache mtime))
 
 (defcmd (add-notes . args)
   "[[timestamp] entry-id] note-line [note-line ...]"
@@ -807,7 +842,8 @@
   (trace `(set-descr ,mtime ,entry-id ,type ,text))
   (unless-protected entry-id
     (exec (sql db "UPDATE entry SET type=?,description=?,mtime=? WHERE id=?;")
-          type text mtime entry-id)))
+          type text mtime entry-id)
+    (update-feed-cache mtime)))
 
 (defcmd (set-descr first . args)
   "[[[mtime] entry-id] type] description" "Sets an entry description"
@@ -837,7 +873,8 @@
 (define (touch* mtime entry-id)
   (trace `(touch ,mtime ,entry-id))
   (unless-protected entry-id
-    (exec (sql db "UPDATE entry SET mtime=? WHERE id=?;") mtime entry-id)))
+    (exec (sql db "UPDATE entry SET mtime=? WHERE id=?;") mtime entry-id)
+    (update-feed-cache mtime)))
 
 (define (touch . args)
   (cond ((null? args)
@@ -905,7 +942,8 @@
                     (exec stmt entry-id tag-id)
                     (write-line (conc "Unknown tag " (car todo))))
                 (loop (cdr todo))))))))
-  (print-tags entry-id))
+  (print-tags entry-id)
+  (update-feed-cache mtime))
 
 (define (retag* mtime entry-id tag-list)
   (trace `(retag ,mtime ,entry-id . ,tag-list))
