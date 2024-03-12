@@ -1072,7 +1072,7 @@
                        WHERE url_id=? ORDER BY tag.name;")
               id)))
 
-(define (write-feed stmt mtime title self)
+(define (write-feed mtime title self rows)
   (write-string
     (serialize-sxml
       `(*TOP* (@ (*NAMESPACES* (atom "http://www.w3.org/2005/Atom")))
@@ -1088,43 +1088,66 @@
            (atom:id ,self)
            (atom:link (@ (rel "self") (href ,self)))
            (atom:updated ,(rfc-3339 mtime))
-           ,@(map (lambda (row) (apply feed->sxml row))
-                  (query fetch-rows stmt))))
+           ,@(map (lambda (row) (apply feed->sxml row)) rows)))
       ns-prefixes: '((*default* . "http://www.w3.org/2005/Atom")))))
 
-(define (generate-feed feed-id filename url selector title)
-  (let* ((stmt (sql db (string-append "SELECT id,url,type,description,notes,ptime,ctime,mtime FROM entry " selector)))
-         (first-row (query fetch-row stmt))
-         (mtime (if (null? first-row) #f (list-ref first-row 7))))
-    (cond ((not mtime)
-            (when config-verbose
-              (write-line (conc "Feed " feed-id " is empty"))))
-          ((and (file-exists? filename)
-                (< mtime (file-modification-time filename)))
-            (when config-verbose
-              (write-line (conc "Feed " feed-id " is already up to date"))))
-          (else
-            (when config-verbose
-              (write-line (conc "Generating feed " feed-id)))
-            (with-output-to-file filename
-              (lambda () (write-feed stmt mtime title url)))))))
+(define (generate-feed forced feed-id filename url selector title mtime)
+  (let* ((rows (query fetch-rows
+                      (sql db (string-append "SELECT id,url,type,description,
+                                                     notes,ptime,ctime,mtime
+                                              FROM entry " selector ";"))))
+         (generate?
+           (cond ((null? rows)
+                   (when config-verbose
+                     (write-line (conc "Feed " feed-id " is empty")))
+                   #f)
+                 ((any (cut = feed-id <>) dirty-feeds)
+                   (when config-verbose
+                     (write-line (conc "Generating feed " feed-id)))
+                   #t)
+                 (forced
+                   (when config-verbose
+                     (write-line (conc "Generating feed " feed-id
+                                       " unconditionally")))
+                   #t)
+                 (else
+                   (when config-verbose
+                     (write-line (conc "Feed " feed-id
+                                       " is already up to date")))
+                   #t))))
+    (when generate?
+      (with-output-to-file filename
+        (lambda () (write-feed (if (null? mtime) (list-ref (car rows) 7) mtime)
+                               title url rows)))
+      (set! dirty-feeds (remove! (cut = feed-id <>) dirty-feeds))
+      (set! feed-cache
+        (alist-update! feed-id
+                       (map (lambda (row) (list (car row) (list-ref row 7)))
+                            rows)
+                       feed-cache =)))))
+
+(define (generate-feeds forced id-list)
+  (for-each
+    (lambda (row) (apply generate-feed forced row))
+    (if (null? id-list)
+        (query fetch-rows
+               (sql db "SELECT id,filename,url,selector,active,mtime
+                        FROM feed WHERE active=1;"))
+        (map (lambda (id)
+               (query fetch
+                      (sql db "SELECT id,filename,url,selector,active,mtime
+                               FROM feed WHERE id=?;")
+                      id))
+             id-list))))
+
+(defcmd (force-generate . args)
+  "[feed-id ...]"
+  "Generate unconditionally the given feeds, or all active feeds"
+  (generate-feeds #t args))
 
 (defcmd (generate . args)
-  "[feed-id ...]" "Generate the given feeds, or all active feeds"
-  (let loop ((todo (if (null? args)
-                       (query fetch-all
-                              (sql db "SELECT id,filename,url,selector,active
-                                       FROM feed WHERE active=1;"))
-                       (map (lambda (id)
-                              (query fetch
-                                (sql db "SELECT id,filename,url,selector,active
-                                         FROM feed WHERE id=?;")
-                                id))
-                            args))))
-    (unless (null? todo)
-      (apply generate-feed (car todo))
-      (loop (cdr todo)))))
-
+  "[feed-id ...]" "Generate if needed the given feeds, or all active feeds"
+  (generate-feeds #f args))
 
 ;;;;;;;;;;;;;
 ;; Auto Add
