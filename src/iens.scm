@@ -878,7 +878,7 @@
 
 (define (touch . args)
   (cond ((null? args)
-          (touch* (current-seconds) entry-id))
+          (touch* (current-seconds) cur-entry))
         ((not (integer? (car args)))
           (assert #f "Bad type for " (car args)))
         ((null? (cdr args))
