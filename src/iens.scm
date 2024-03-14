@@ -651,7 +651,7 @@
           new-id)))))
     (set! cur-entry new-id)
     (write-line (conc "Added " new-id)))
-  (update-feed-cache mtime))
+  (update-feed-cache ctime))
 
 (defcmd (add-entry first second . rest)
   "[timestamp] URL note-line [note-line ...]" "Create a new entry"
