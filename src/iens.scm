@@ -1131,11 +1131,11 @@
     (lambda (row) (apply generate-feed forced row))
     (if (null? id-list)
         (query fetch-rows
-               (sql db "SELECT id,filename,url,selector,active,mtime
+               (sql db "SELECT id,filename,url,selector,title,mtime
                         FROM feed WHERE active=1;"))
         (map (lambda (id)
                (query fetch
-                      (sql db "SELECT id,filename,url,selector,active,mtime
+                      (sql db "SELECT id,filename,url,selector,title,mtime
                                FROM feed WHERE id=?;")
                       id))
              id-list))))
