@@ -424,12 +424,9 @@
                      id))
         (old-sig (alist-ref id feed-cache = '())))
     (if (null? data)
-        (begin
-          (write-line (conc "Feed #" id " does not exist"))
-          #f)
-        (let* ((new-sig (build-signature (cadr data)))
-               (changed (not (equal? old-sig new-sig))))
-          (when changed
+        (write-line (conc "Feed #" id " does not exist"))
+        (let ((new-sig (build-signature (cadr data))))
+          (unless (equal? old-sig new-sig)
             (when (or (null? (car data))
                       (> mtime (car data)))
               (touch-feed mtime id))
@@ -438,11 +435,10 @@
               (write-diff (diff-signature old-sig new-sig)))
             (unless (any (cut = id <>) dirty-feeds)
               (set! dirty-feeds (cons id dirty-feeds)))
-            (set! feed-cache (alist-update! id new-sig feed-cache =)))
-          changed))))
+            (set! feed-cache (alist-update! id new-sig feed-cache =)))))))
 
 (define (update-feed-cache mtime . id-list)
-  (filter
+  (for-each
     (cut update-feed-cache* mtime <>)
     (if (null? id-list)
         (query fetch-column (sql db "SELECT id FROM feed WHERE active=1;"))
