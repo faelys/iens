@@ -173,6 +173,7 @@
 (define config-author-name #f)
 (define config-author-email #f)
 (define config-author-uri #f)
+(define config-autogenerate #f)
 (define config-editor #f)
 (define config-entry-id-prefix "")
 (define config-list-tagged-count 0)
@@ -212,6 +213,7 @@
   (set! config-author-name  (get-config "author-name"))
   (set! config-author-email (get-config "author-email"))
   (set! config-author-uri   (get-config "author-uri"))
+  (set! config-autogenerate (not (zero? (get-config/default "autogenerate" 0))))
   (set! config-editor       (get-config/default "editor" default-editor))
   (set! config-entry-id-prefix (get-config/default "entry-id-prefix" ""))
   (set! config-list-tagged-count (get-config/default "list-tagged-count" 0))
@@ -420,7 +422,8 @@
 
 (define (update-feed-cache* mtime id)
   (let ((data (query fetch-row
-                     (sql db "SELECT mtime,selector FROM feed WHERE id=?;")
+                     (sql db "SELECT mtime,selector,filename,title,url
+                              FROM feed WHERE id=?;")
                      id))
         (old-sig (alist-ref id feed-cache = '())))
     (if (null? data)
@@ -429,13 +432,27 @@
           (unless (equal? old-sig new-sig)
             (when (or (null? (car data))
                       (> mtime (car data)))
-              (touch-feed mtime id))
+              (touch-feed mtime id)
+              (set! (car data) mtime))
             (when config-verbose
-              (write-line (conc "Marking feed " id " as dirty:"))
-              (write-diff (diff-signature old-sig new-sig)))
-            (unless (any (cut = id <>) dirty-feeds)
-              (set! dirty-feeds (cons id dirty-feeds)))
-            (set! feed-cache (alist-update! id new-sig feed-cache =)))))))
+               (write-line (if config-autogenerate
+                               (conc "Autogenerating feed " id)
+                               (conc "Marking feed " id " as dirty:")))
+               (write-diff (diff-signature old-sig new-sig)))
+            (if config-autogenerate
+                (with-output-to-file (caddr data) ;filename
+                  (cut write-feed
+                    (car data) ;mtime
+                    (list-ref data 3) ;title
+                    (list-ref data 4) ;url
+                    (query fetch-rows
+                      (sql db (string-append "SELECT id,url,type,description,
+                                                     notes,ptime,ctime,mtime
+                                              FROM entry " (cadr data) ";")))))
+                (unless (any (cut = id <>) dirty-feeds)
+                  (set! dirty-feeds (cons id dirty-feeds))))
+            (set! feed-cache
+                  (alist-update! id new-sig feed-cache =)))))))
 
 (define (update-feed-cache mtime . id-list)
   (for-each
