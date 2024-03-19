@@ -1132,7 +1132,7 @@
       (with-output-to-file filename
         (lambda () (write-feed (if (null? mtime) (list-ref (car rows) 7) mtime)
                                title url rows)))
-      (set! dirty-feeds (remove! (cut = feed-id <>) dirty-feeds))
+      (set! dirty-feeds (delete! feed-id dirty-feeds =))
       (set! feed-cache
         (alist-update! feed-id
                        (map (lambda (row) (list (car row) (list-ref row 7)))
