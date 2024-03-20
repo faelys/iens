@@ -567,16 +567,24 @@
                  (sql db "SELECT protected FROM entry WHERE id=?;")
                  entry-id))))
 
+(define protection-overrides '())
+
+(define (is-overridden? entry-id)
+  (any (cut = entry-id <>) protection-overrides))
+
+(define (update-allowed? entry-id)
+  (or (not (is-protected? entry-id)) (is-overridden? entry-id)))
+
 (define-syntax unless-protected
   (syntax-rules ()
     ((unless-protected entry-id . form)
-      (if (is-protected? entry-id)
-          (write-line (conc "Warning: entry " entry-id " is protected"))
-          (begin . form)))))
+      (if (update-allowed? entry-id)
+          (begin . form)
+          (write-line (conc "Warning: entry " entry-id " is protected"))))))
 
-(define (protect! entry-id)
-  (trace `(protect! ,entry-id))
-  (exec (sql db "UPDATE entry SET protected=? WHERE id=?;") 1 entry-id))
+(define (unoverride! entry-id)
+  (trace `(unoverride! ,entry-id))
+  (set! protection-overrides (delete! entry-id protection-overrides =)))
 
 (define (protect* ptime entry-id)
   (trace `(protect ,ptime ,entry-id))
@@ -594,9 +602,10 @@
         (else
           (protect* (car args) (cadr args)))))
 
-(define (unprotect! entry-id)
-  (trace `(unprotect! ,entry-id))
-  (exec (sql db "UPDATE entry SET protected=? WHERE id=?;") 0 entry-id))
+(define (override! entry-id)
+  (trace `(override! ,entry-id))
+  (unless (update-allowed? entry-id)
+    (set! protection-overrides (cons entry-id protection-overrides))))
 
 (define (unprotect* mtime entry-id)
   (trace `(unprotect ,mtime ,entry-id))
@@ -619,9 +628,9 @@
         (set! cur-entry entry-id)
         (if (is-protected? entry-id)
             (begin
-              (unprotect! entry-id)
+              (override! entry-id)
               (if (procedure? proc) (proc) (eval proc))
-              (protect! entry-id))
+              (unoverride! entry-id))
             (if (procedure? proc) (proc) (eval proc)))
         (set! cur-entry prev-cur-entry-id))
       (write-line (conc "Invalid procedure " proc))))
@@ -1249,9 +1258,14 @@
 
 (define state 'general)
 (define (prompt)
-  (cond ((eqv? state 'general) "> ")
-        ((eqv? state 'in-command) "… ")
-        (else "? ")))
+  (string-append
+    (if (null? protection-overrides)
+        ""
+        (string-append "!"
+          (string-intersperse (map ->string protection-overrides) ",")))
+    (cond ((eqv? state 'general) "> ")
+          ((eqv? state 'in-command) "… ")
+          (else "? "))))
 
 (define (interactive-main)
   (basic-quote-characters-set! "\"|")
