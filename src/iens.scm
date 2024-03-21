@@ -594,7 +594,7 @@
      (update-feed-cache ptime)))
 
 (defcmd (protect . args)
-  "[timestamp] [entry-id]" "Protect entries from modification"
+  "[[timestamp] entry-id]" "Protect entries from modification"
   (cond ((null? args)
           (protect* (current-seconds) cur-entry))
         ((null? (cdr args))
@@ -614,7 +614,7 @@
   (update-feed-cache mtime))
 
 (defcmd (unprotect . args)
-  "[timestamp] [entry-id]" "Unprotect entries from modification"
+  "[[timestamp] entry-id]" "Unprotect entries from modification"
   (cond ((null? args)
           (unprotect* (current-seconds) cur-entry))
         ((null? (cdr args))
