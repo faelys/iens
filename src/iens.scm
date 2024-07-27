@@ -949,21 +949,28 @@
           (print-tags* (car todo))
           (loop (cdr todo))))))
 
+
+(define (resolve-tag-id tag-name)
+  (let ((result (query fetch-value
+                       (sql db "SELECT id from tag WHERE name=?;")
+                       tag-name)))
+    (unless result
+      (write-line (conc "Unknown tag " tag-name)))
+    result))
+
 (define (exec-on-tags stmt mtime entry-id tag-list)
   (with-transaction db
     (lambda ()
       (unless-protected entry-id
-        (let loop ((todo tag-list))
-          (if (null? todo)
-              (exec (sql db "UPDATE entry SET mtime=? WHERE id=?;")
-                    mtime entry-id)
-              (let ((tag-id (query fetch-value
-                                   (sql db "SELECT id FROM tag WHERE name=?;")
-                                   (car todo))))
-                (if tag-id
-                    (exec stmt entry-id tag-id)
-                    (write-line (conc "Unknown tag " (car todo))))
-                (loop (cdr todo))))))))
+        (let ((tag-id-list (map resolve-tag-id tag-list)))
+          (when (every identity tag-id-list)
+            (let loop ((todo tag-id-list))
+              (if (null? todo)
+                  (exec (sql db "UPDATE entry SET mtime=? WHERE id=?;")
+                        mtime entry-id)
+                  (begin
+                    (exec stmt entry-id (car todo))
+                    (loop (cdr todo))))))))))
   (print-tags entry-id)
   (update-feed-cache mtime))
 
