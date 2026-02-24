@@ -31,7 +31,8 @@
         sxml-serializer)
 
 (define (starts-with? maybe-prefix s)
-  (substring=? s maybe-prefix 0 0 (string-length maybe-prefix)))
+  (and (<= (string-length maybe-prefix) (string-length s))
+       (substring=? s maybe-prefix 0 0 (string-length maybe-prefix))))
 
 (define (ends-with? maybe-suffix s)
   (let ((ls  (string-length s))
