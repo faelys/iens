@@ -1,3 +1,5 @@
+[![Casual Maintenance Intended](https://casuallymaintained.tech/badge.svg)](https://casuallymaintained.tech/)
+
 This application is a TUI for managing a database of links to read
 and generating ATOM feeds from user-provided tags and description.
 
