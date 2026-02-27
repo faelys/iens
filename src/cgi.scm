@@ -292,8 +292,8 @@
     "SELECT id,mark,ptime,section,title,url FROM gruik WHERE mark >= 0;"))
 
 (define (do-set-mark id old-v new-v)
-  (exec (sql db "UPDATE gruik SET mark = ? WHERE mark = ? AND id = ?;")
-        new-v old-v id))
+  (exec (sql db "UPDATE gruik SET mtime=?, mark=? WHERE mark=? AND id=?;")
+        (current-seconds) new-v old-v id))
 
 (define (do-marked)
   (let ((id     (input-var "id"))
