@@ -291,7 +291,7 @@
     "Latest gruiks"
     "SELECT id,mark,ptime,section,title,url FROM gruik WHERE mark >= 0;"))
 
-(define (do-set-mark id old-v new-v)
+(define (db-set-mark id old-v new-v)
   (exec (sql db "UPDATE gruik SET mtime=?, mark=? WHERE mark=? AND id=?;")
         (current-seconds) new-v old-v id))
 
@@ -302,7 +302,7 @@
       ((not id)                   (bad-input "missing id"))
       ((not submit)               (bad-input "missing submit"))
       ((string=? submit "Edit")   (redirect (conc "/gruik/" id)))
-      ((string=? submit "Unmark") (do-set-mark id 0 -1) (redirect "/"))
+      ((string=? submit "Unmark") (db-set-mark id 0 -1) (redirect "/"))
       (else                       (bad-input "bad value for submit")))))
 
 (define (do-undelete)
@@ -311,7 +311,7 @@
     (cond
       ((not id)                    (bad-input "missing id"))
       ((not submit)                (bad-input "missing submit"))
-      ((string=? submit "Restore") (do-set-mark id -1 0) (redirect "/"))
+      ((string=? submit "Restore") (db-set-mark id -1 0) (redirect "/"))
       (else                        (bad-input "bad value for submit")))))
 
 (define (do-unmarked)
@@ -320,12 +320,12 @@
     (cond
       ((not id)                   (bad-input "missing id"))
       ((not submit)               (bad-input "missing submit"))
-      ((string=? submit "Mark")   (do-set-mark id 0  1) (redirect "/"))
-      ((string=? submit "Delete") (do-set-mark id 0 -1) (redirect "/"))
+      ((string=? submit "Mark")   (db-set-mark id 0  1) (redirect "/"))
+      ((string=? submit "Delete") (db-set-mark id 0 -1) (redirect "/"))
       (else                       (bad-input "bad value for submit")))))
 
 
-(defrne route-do-marked
+(define route-do-marked
   (preceded-by (char-seq "do-marked")
                (result do-marked)))
 (define route-do-undelete
