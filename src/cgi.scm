@@ -23,8 +23,9 @@
   sxml-serializer)
 
 (define css-style "
-.bad-post { background: #fcc; }
-.marked-post { backgound: #ccf; }
+.bad-post { background: #fcc; transition: all 0.5s ease-in; }
+.marked-post { background: #ccf; transition: all 0.5s ease-in; }
+.unmarked-post { transition: all 0.5s ease-in; }
 ")
 
 (define content-length
@@ -242,20 +243,26 @@
     (a (@ (href ,url)) ,url)))
 
 (define (bad-post-fragment id ptime section title url)
-  `(form (@ (method "POST") (action "do-undelete") (class "bad-post"))
+  `(form (@ (method "POST") (action "do-undelete")
+            (id ,(conc "post-" id)) (class "bad-post")
+            (hx-swap "outerHTML")  (hx-post "xdo-undelete"))
     ,(post-p-fragment ptime section title url)
     (input (@ (type "hidden") (name "id") (value ,id)))
     (input (@ (type "submit") (name "submit") (value "Restore")))))
 
 (define (marked-post-fragment id ptime section title url)
-  `(form (@ (method "POST") (action "do-marked") (class "marked-post"))
+  `(form (@ (method "POST") (action "do-marked")
+            (id ,(conc "post-" id)) (class "marked-post")
+            (hx-swap "outerHTML")  (hx-post "xdo-marked"))
     ,(post-p-fragment ptime section title url)
     (input (@ (type "hidden") (name "id") (value ,id)))
     (input (@ (type "submit") (name "submit") (value "Unmark")))
     (input (@ (type "submit") (name "submit") (value "Edit")))))
 
 (define (unmarked-post-fragment id ptime section title url)
-  `(form (@ (method "POST") (action "do-unmarked") (class "unmarked-post"))
+  `(form (@ (method "POST") (action "do-unmarked")
+            (id ,(conc "post-" id)) (class "unmarked-post")
+            (hx-swap "outerHTML")  (hx-post "xdo-unmarked"))
     ,(post-p-fragment ptime section title url)
     (input (@ (type "hidden") (name "id") (value ,id)))
     (input (@ (type "submit") (name "submit") (value "Mark")))
@@ -266,6 +273,13 @@
     ((0)  (unmarked-post-fragment id ptime section title url))
     ((1)  (marked-post-fragment   id ptime section title url))
     (else (bad-post-fragment      id ptime section title url))))
+
+(define (post-htmx id)
+  (htmx-output
+    (query
+      (map-rows* post-fragment)
+      (sql db "SELECT id,mark,ptime,section,title,url FROM gruik WHERE id=?;")
+      id)))
 
 (define (gruik-list-view title q)
   (html-output
@@ -305,6 +319,16 @@
       ((string=? submit "Unmark") (db-set-mark id 0 -1) (redirect "/"))
       (else                       (bad-input "bad value for submit")))))
 
+(define (xdo-marked)
+  (let ((id     (input-var "id"))
+        (submit (input-var "submit")))
+    (cond
+      ((not id)                   (bad-input "missing id"))
+      ((not submit)               (bad-input "missing submit"))
+      ((string=? submit "Edit")   (redirect (conc "/gruik/" id)))
+      ((string=? submit "Unmark") (db-set-mark id 1 0) (post-htmx id))
+      (else                       (bad-input "bad value for submit")))))
+
 (define (do-undelete)
   (let ((id     (input-var "id"))
         (submit (input-var "submit")))
@@ -312,6 +336,15 @@
       ((not id)                    (bad-input "missing id"))
       ((not submit)                (bad-input "missing submit"))
       ((string=? submit "Restore") (db-set-mark id -1 0) (redirect "/"))
+      (else                        (bad-input "bad value for submit")))))
+
+(define (xdo-undelete)
+  (let ((id     (input-var "id"))
+        (submit (input-var "submit")))
+    (cond
+      ((not id)                    (bad-input "missing id"))
+      ((not submit)                (bad-input "missing submit"))
+      ((string=? submit "Restore") (db-set-mark id -1 0) (htmx-output '()))
       (else                        (bad-input "bad value for submit")))))
 
 (define (do-unmarked)
@@ -324,19 +357,35 @@
       ((string=? submit "Delete") (db-set-mark id 0 -1) (redirect "/"))
       (else                       (bad-input "bad value for submit")))))
 
+(define (xdo-unmarked)
+  (let ((id     (input-var "id"))
+        (submit (input-var "submit")))
+    (cond
+      ((not id)                   (bad-input "missing id"))
+      ((not submit)               (bad-input "missing submit"))
+      ((string=? submit "Mark")   (db-set-mark id 0  1) (post-htmx id))
+      ((string=? submit "Delete") (db-set-mark id 0 -1) (htmx-output '()))
+      (else                       (bad-input "bad value for submit")))))
+
 
 (define route-do-marked
   (preceded-by (char-seq "do-marked")
                (result do-marked)))
+(define route-xdo-marked
+  (preceded-by (char-seq "xdo-marked")
+               (result xdo-marked)))
 (define route-do-undelete
   (preceded-by (char-seq "do-undelete")
                (result do-undelete)))
+(define route-xdo-undelete
+  (preceded-by (char-seq "xdo-undelete")
+               (result xdo-undelete)))
 (define route-do-unmarked
   (preceded-by (char-seq "do-unmarked")
                (result do-unmarked)))
-(define route-do-unmarked
-  (preceded-by (char-seq "do-unmarked")
-               (result do-unmarked)))
+(define route-xdo-unmarked
+  (preceded-by (char-seq "xdo-unmarked")
+               (result xdo-unmarked)))
 (define route-deleted
   (preceded-by (char-seq "deleted")
                (result deleted-view)))
@@ -354,6 +403,9 @@
                    (list route-do-marked
                          route-do-undelete
                          route-do-unmarked
+                         route-xdo-marked
+                         route-xdo-undelete
+                         route-xdo-unmarked
                          route-deleted
                          route-main
                          route-ok)))))
