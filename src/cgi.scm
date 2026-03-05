@@ -45,6 +45,9 @@
     (cond ((null? rest) #f)
           ((string=? (caar rest) name) (cadar rest))
           (else (loop (cdr rest))))))
+(define (required-input-var name)
+  (let ((val (input-var name)))
+    (if val val (bad-input (conc "missing " name)))))
 
 (define start-html
   "Content-Type: text/html\r\n\r\n<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">")
@@ -310,59 +313,47 @@
         (current-seconds) new-v old-v id))
 
 (define (do-marked)
-  (let ((id     (input-var "id"))
-        (submit (input-var "submit")))
+  (let ((id     (required-input-var "id"))
+        (submit (required-input-var "submit")))
     (cond
-      ((not id)                   (bad-input "missing id"))
-      ((not submit)               (bad-input "missing submit"))
       ((string=? submit "Edit")   (redirect (conc "/gruik/" id)))
       ((string=? submit "Unmark") (db-set-mark id 0 -1) (redirect "/"))
       (else                       (bad-input "bad value for submit")))))
 
 (define (xdo-marked)
-  (let ((id     (input-var "id"))
-        (submit (input-var "submit")))
+  (let ((id     (required-input-var "id"))
+        (submit (required-input-var "submit")))
     (cond
-      ((not id)                   (bad-input "missing id"))
-      ((not submit)               (bad-input "missing submit"))
       ((string=? submit "Edit")   (redirect (conc "/gruik/" id)))
       ((string=? submit "Unmark") (db-set-mark id 1 0) (post-htmx id))
       (else                       (bad-input "bad value for submit")))))
 
 (define (do-undelete)
-  (let ((id     (input-var "id"))
-        (submit (input-var "submit")))
+  (let ((id     (required-input-var "id"))
+        (submit (required-input-var "submit")))
     (cond
-      ((not id)                    (bad-input "missing id"))
-      ((not submit)                (bad-input "missing submit"))
       ((string=? submit "Restore") (db-set-mark id -1 0) (redirect "/"))
       (else                        (bad-input "bad value for submit")))))
 
 (define (xdo-undelete)
-  (let ((id     (input-var "id"))
-        (submit (input-var "submit")))
+  (let ((id     (required-input-var "id"))
+        (submit (required-input-var "submit")))
     (cond
-      ((not id)                    (bad-input "missing id"))
-      ((not submit)                (bad-input "missing submit"))
       ((string=? submit "Restore") (db-set-mark id -1 0) (htmx-output '()))
       (else                        (bad-input "bad value for submit")))))
 
 (define (do-unmarked)
-  (let ((id     (input-var "id"))
-        (submit (input-var "submit")))
+  (let ((id     (required-input-var "id"))
+        (submit (required-input-var "submit")))
     (cond
-      ((not id)                   (bad-input "missing id"))
-      ((not submit)               (bad-input "missing submit"))
       ((string=? submit "Mark")   (db-set-mark id 0  1) (redirect "/"))
       ((string=? submit "Delete") (db-set-mark id 0 -1) (redirect "/"))
       (else                       (bad-input "bad value for submit")))))
 
 (define (xdo-unmarked)
-  (let ((id     (input-var "id"))
-        (submit (input-var "submit")))
+  (let ((id     (required-input-var "id"))
+        (submit (required-input-var "submit")))
     (cond
-      ((not id)                   (bad-input "missing id"))
-      ((not submit)               (bad-input "missing submit"))
       ((string=? submit "Mark")   (db-set-mark id 0  1) (post-htmx id))
       ((string=? submit "Delete") (db-set-mark id 0 -1) (htmx-output '()))
       (else                       (bad-input "bad value for submit")))))
