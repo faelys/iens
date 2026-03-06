@@ -259,8 +259,8 @@
             (hx-swap "outerHTML")  (hx-post "xdo-marked"))
     ,(post-p-fragment ptime section title url)
     (input (@ (type "hidden") (name "id") (value ,id)))
-    (input (@ (type "submit") (name "submit") (value "Unmark")))
-    (input (@ (type "submit") (name "submit") (value "Edit")))))
+    (input (@ (type "submit") (name "submit") (value "Edit")))
+    (input (@ (type "submit") (name "submit") (value "Unmark")))))
 
 (define (unmarked-post-fragment id ptime section title url)
   `(form (@ (method "POST") (action "do-unmarked")
