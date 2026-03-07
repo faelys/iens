@@ -245,6 +245,36 @@
     (span (@ (class "title")) ,title)
     (a (@ (href ,url)) ,url)))
 
+(define (edit-post-fragment id ptime section title url mark notes description)
+  `(form (@ (method "POST") (action "do-edit")
+            (id ,(conc "post-" id)) (class "edit-post"))
+;           (hx-swap "outerHTML")  (hx-post "xdo-edit"))
+    (p ,(conc "Mark: " mark))
+    ,(post-p-fragment ptime section title url)
+    (pre (code ,notes))
+    (p (label "Append to notes:"
+      (textarea (@ (name "notes") (rows 5)) ""))
+    (p (label "Description:"
+      (textarea (@ (name "description") (rows 5)) ,description))
+    (input (@ (type "hidden") (name "id") (value ,id)))
+    (input (@ (type "submit") (name "submit") (value "Edit")))))
+    (input (@ (type "submit") (name "submit") (value "Cancel")))))
+
+(define (edit-post-fragment* id)
+  (query
+    (map-rows* edit-post-fragment)
+    (sql db "SELECT id,ptime,section,title,url,mark,notes,description FROM gruik WHERE mark=1 AND id=?;")
+    id))
+
+(define (db-edit)
+  (when (string=? "Edit" (required-input-var "submit"))
+    (exec
+      (sql db/transient
+        "UPDATE gruik SET notes=CONCAT(notes,?),description=? WHERE id=?;")
+      (required-input-var "notes")
+      (required-input-var "description")
+      (required-input-var "id"))))
+
 (define (bad-post-fragment id ptime section title url)
   `(form (@ (method "POST") (action "do-undelete")
             (id ,(conc "post-" id)) (class "bad-post")
@@ -302,6 +332,17 @@
     "Deleted gruiks"
     "SELECT id,mark,ptime,section,title,url FROM gruik WHERE mark < 0 ORDER BY mtime;"))
 
+(define (edit-view id)
+  (let ((title (conc "Gruik #" id)))
+    (html-output
+      `(html
+        (head
+          (title ,title)
+          (script (@ (src "https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js")) ""))
+          (style ,css-style)
+        (body (h1 ,title)
+          ,@(edit-post-fragment* id))))))
+
 (define (main-view)
   (catch-up)
   (gruik-list-view
@@ -324,7 +365,8 @@
   (let ((id     (required-input-var "id"))
         (submit (required-input-var "submit")))
     (cond
-      ((string=? submit "Edit")   (redirect (conc "/gruik/" id)))
+      ((string=? submit "Edit")   (htmx-output
+                                    (edit-post-fragment* (string->number id))))
       ((string=? submit "Unmark") (db-set-mark id 1 0) (post-htmx id))
       (else                       (bad-input "bad value for submit")))))
 
@@ -380,6 +422,10 @@
 (define route-deleted
   (preceded-by (char-seq "deleted")
                (result deleted-view)))
+(define route-edit
+  (sequence* ((_  (char-seq "gruik/"))
+              (id (as-string (one-or-more irc-digit))))
+    (result (lambda () (edit-view (string->number id))))))
 (define route-main (result main-view))
 (define route-ok
   (preceded-by (char-seq "ok")
@@ -398,6 +444,7 @@
                          route-xdo-undelete
                          route-xdo-unmarked
                          route-deleted
+                         route-edit
                          route-main
                          route-ok)))))
 
