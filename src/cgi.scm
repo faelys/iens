@@ -318,6 +318,9 @@
   (html-output
     `(html
       (head
+        (meta (@ (charset "utf-8")))
+        (meta (@ (name "viewport")
+                 (content "width=device-width, initial-scale=1")))
         (title ,title)
         (script (@ (src "https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js")) ""))
         (style ,css-style)
@@ -337,6 +340,9 @@
     (html-output
       `(html
         (head
+          (meta (@ (charset "utf-8")))
+          (meta (@ (name "viewport")
+                   (content "width=device-width, initial-scale=1")))
           (title ,title)
           (script (@ (src "https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js")) ""))
           (style ,css-style)
