@@ -22,11 +22,78 @@
   sql-de-lite
   sxml-serializer)
 
-(define css-style "
+(define css-style #<<END-OF-CSS
+h1 { text-align: center; }
 .bad-post { background: #fcc; transition: all 0.5s ease-in; }
 .marked-post { background: #ccf; transition: all 0.5s ease-in; }
 .unmarked-post { transition: all 0.5s ease-in; }
-")
+.edit-post { transition: all 0.5s ease-in; }
+form {
+  margin: 1rex 0;
+  display: grid;
+  gap: 0.5rex;
+}
+.lsub { width: 4.5rem; }
+.rsub { width: 4.5rem; }
+textarea { display: block; }
+
+@media (min-width: 60rem) {
+  form {
+    grid-template-columns: 5rem 1fr 5rem;
+    align-items: center;
+  }
+
+  .form-body {
+    grid-column: 2;
+  }
+
+  .lsub {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  .rsub {
+    grid-column: 3;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 59.9rem) {
+  form {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas: \"c c\" \"l r\";
+  }
+
+  .form-body {
+    grid-area: c;
+  }
+
+  .lsub {
+    grid-area: l;
+    justify-self: start;
+  }
+
+  .rsub {
+    grid-area: r;
+    justify-self: end;
+  }
+}
+
+body { background: #F0ECE0; color: #000000; }
+form { background: #FFFFFF; }
+a:link { color: #007FBF; }
+a:visited { color: #003F7F; }
+a:hover { background: #007FBF; color: #F0E8E0; }
+
+@media (prefers-color-scheme: dark) {
+  body { background: #103c48; color: #adbcbc; }
+  form { background: #184956; color: #cad8d9; }
+  a:link { color: #4695f7; }
+  a:visited { color: #af88eb; }
+  a:hover { background: #4695f7; color: #103c48; }
+}
+END-OF-CSS
+)
 
 (define content-length
   (let ((ct (get-environment-variable "CONTENT_LENGTH")))
@@ -249,16 +316,17 @@
   `(form (@ (method "POST") (action "do-edit")
             (id ,(conc "post-" id)) (class "edit-post"))
 ;           (hx-swap "outerHTML")  (hx-post "xdo-edit"))
-    (p ,(conc "Mark: " mark))
-    ,(post-p-fragment ptime section title url)
-    (pre (code ,notes))
-    (p (label "Append to notes:"
-      (textarea (@ (name "notes") (rows 5)) ""))
-    (p (label "Description:"
-      (textarea (@ (name "description") (rows 5)) ,description))
+    (input (@ (type "submit") (name "submit") (class lsub) (value "Edit")))
+    (div (@ (class "form-body"))
+      (p ,(conc "Mark: " mark))
+      ,(post-p-fragment ptime section title url)
+      (pre (code ,notes))
+      (p (label "Append to notes:"
+        (textarea (@ (name "notes") (cols 80) (rows 5)) "")))
+      (p (label "Description:"
+        (textarea (@ (name "description") (cols 80) (rows 5)) ,description))))
     (input (@ (type "hidden") (name "id") (value ,id)))
-    (input (@ (type "submit") (name "submit") (value "Edit")))))
-    (input (@ (type "submit") (name "submit") (value "Cancel")))))
+    (input (@ (type "submit") (name "submit") (class rsub) (value "Cancel")))))
 
 (define (edit-post-fragment* id)
   (query
@@ -279,27 +347,30 @@
   `(form (@ (method "POST") (action "do-undelete")
             (id ,(conc "post-" id)) (class "bad-post")
             (hx-swap "outerHTML")  (hx-post "xdo-undelete"))
-    ,(post-p-fragment ptime section title url)
-    (input (@ (type "hidden") (name "id") (value ,id)))
-    (input (@ (type "submit") (name "submit") (value "Restore")))))
+    (input (@ (type "submit") (name "submit") (class lsub) (value "Restore")))
+    (div (@ (class "form-body"))
+      ,(post-p-fragment ptime section title url))
+    (input (@ (type "hidden") (name "id") (value ,id)))))
 
 (define (marked-post-fragment id ptime section title url)
   `(form (@ (method "POST") (action "do-marked")
             (id ,(conc "post-" id)) (class "marked-post")
             (hx-swap "outerHTML")  (hx-post "xdo-marked"))
-    ,(post-p-fragment ptime section title url)
+    (input (@ (type "submit") (name "submit") (class lsub) (value "Edit")))
+    (div (@ (class "form-body"))
+      ,(post-p-fragment ptime section title url))
     (input (@ (type "hidden") (name "id") (value ,id)))
-    (input (@ (type "submit") (name "submit") (value "Edit")))
-    (input (@ (type "submit") (name "submit") (value "Unmark")))))
+    (input (@ (type "submit") (name "submit") (class rsub) (value "Unmark")))))
 
 (define (unmarked-post-fragment id ptime section title url)
   `(form (@ (method "POST") (action "do-unmarked")
             (id ,(conc "post-" id)) (class "unmarked-post")
             (hx-swap "outerHTML")  (hx-post "xdo-unmarked"))
-    ,(post-p-fragment ptime section title url)
+    (input (@ (type "submit") (name "submit") (class lsub) (value "Mark")))
+    (div (@ (class "form-body"))
+      ,(post-p-fragment ptime section title url))
     (input (@ (type "hidden") (name "id") (value ,id)))
-    (input (@ (type "submit") (name "submit") (value "Mark")))
-    (input (@ (type "submit") (name "submit") (value "Delete")))))
+    (input (@ (type "submit") (name "submit") (class rsub) (value "Delete")))))
 
 (define (post-fragment id mark ptime section title url)
   (case mark
