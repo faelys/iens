@@ -338,7 +338,8 @@ END-OF-CSS
   (when (string=? "Edit" (required-input-var "submit"))
     (exec
       (sql db/transient
-        "UPDATE gruik SET notes=CONCAT(notes,?),description=? WHERE id=?;")
+        "UPDATE gruik SET mtime=?,notes=CONCAT(notes,?),description=? WHERE id=?;")
+      (current-seconds)
       (required-input-var "notes")
       (required-input-var "description")
       (required-input-var "id"))))
