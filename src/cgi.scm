@@ -338,10 +338,10 @@ END-OF-CSS
   (when (string=? "Edit" (required-input-var "submit"))
     (exec
       (sql db/transient
-        "UPDATE gruik SET mtime=?,notes=CONCAT(notes,?),description=? WHERE id=?;")
+        "UPDATE gruik SET mtime=?,notes=trim(notes||char(10)||?,char(10)),description=? WHERE id=?;")
       (current-seconds)
-      (required-input-var "notes")
-      (required-input-var "description")
+      (string-translate (required-input-var "notes") "\r")
+      (string-translate (required-input-var "description") "\r")
       (required-input-var "id"))))
 
 (define (bad-post-fragment id ptime section title url)
