@@ -24,18 +24,22 @@
 
 (define css-style #<<END-OF-CSS
 h1 { text-align: center; }
-.bad-post { background: #fcc; transition: all 0.5s ease-in; }
-.marked-post { background: #ccf; transition: all 0.5s ease-in; }
-.unmarked-post { transition: all 0.5s ease-in; }
-.edit-post { transition: all 0.5s ease-in; }
+.bad-post { background: #fcc; }
+.marked-post { background: #ccf; }
+.unmarked-post { }
+.edit-post { }
 form {
   margin: 1rex 0;
   display: grid;
   gap: 0.5rex;
+  transition: all 0.5s ease-in;
 }
 .lsub { width: 4.5rem; }
 .rsub { width: 4.5rem; }
-textarea { display: block; }
+textarea { display: block; max-width: 100%; }
+span.ptime { font-size: 80%; }
+span.section { font-size: 80%; }
+span.title { font-weight: bold; display: block; }
 
 @media (min-width: 60rem) {
   form {
@@ -91,6 +95,8 @@ a:hover { background: #007FBF; color: #F0E8E0; }
   a:link { color: #4695f7; }
   a:visited { color: #af88eb; }
   a:hover { background: #4695f7; color: #103c48; }
+  .bad-post { background: #783946; }
+  .marked-post { background: #1849a6; }
 }
 END-OF-CSS
 )
