@@ -320,8 +320,8 @@ END-OF-CSS
 
 (define (edit-post-fragment id ptime section title url mark notes description)
   `(form (@ (method "POST") (action "do-edit")
-            (id ,(conc "post-" id)) (class "edit-post"))
-;           (hx-swap "outerHTML")  (hx-post "xdo-edit"))
+            (id ,(conc "post-" id)) (class "edit-post")
+            (hx-swap "outerHTML")  (hx-post "xdo-edit"))
     (input (@ (type "submit") (name "submit") (class lsub) (value "Edit")))
     (div (@ (class "form-body"))
       (p ,(conc "Mark: " mark))
@@ -341,14 +341,16 @@ END-OF-CSS
     id))
 
 (define (db-edit)
-  (when (string=? "Edit" (required-input-var "submit"))
-    (exec
-      (sql db/transient
-        "UPDATE gruik SET mtime=?,notes=trim(notes||char(10)||?,char(10)),description=? WHERE mark=1 AND id=?;")
-      (current-seconds)
-      (string-translate (required-input-var "notes") "\r")
-      (string-translate (required-input-var "description") "\r")
-      (required-input-var "id"))))
+  (let ((id (string->number (required-input-var "id"))))
+    (when (string=? "Edit" (required-input-var "submit"))
+      (exec
+        (sql/transient db
+          "UPDATE gruik SET mtime=?,notes=trim(notes||char(10)||?,char(10)),description=? WHERE mark=1 AND id=?;")
+        (current-seconds)
+        (string-translate (required-input-var "notes") "\r")
+        (string-translate (required-input-var "description") "\r")
+        id))
+    id))
 
 (define (bad-post-fragment id ptime section title url)
   `(form (@ (method "POST") (action "do-undelete")
@@ -437,6 +439,10 @@ END-OF-CSS
   (exec (sql db "UPDATE gruik SET mtime=?, mark=? WHERE mark=? AND id=?;")
         (current-seconds) new-v old-v id))
 
+(define (xdo-edit)
+  (let ((id (db-edit)))
+    (post-htmx id)))
+
 (define (do-marked)
   (let ((id     (required-input-var "id"))
         (submit (required-input-var "submit")))
@@ -485,6 +491,9 @@ END-OF-CSS
       (else                       (bad-input "bad value for submit")))))
 
 
+(define route-xdo-edit
+  (preceded-by (char-seq "xdo-edit")
+               (result xdo-edit)))
 (define route-do-marked
   (preceded-by (char-seq "do-marked")
                (result do-marked)))
@@ -524,6 +533,7 @@ END-OF-CSS
                    (list route-do-marked
                          route-do-undelete
                          route-do-unmarked
+                         route-xdo-edit
                          route-xdo-marked
                          route-xdo-undelete
                          route-xdo-unmarked
