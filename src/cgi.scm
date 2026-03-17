@@ -402,8 +402,8 @@ END-OF-CSS
         (meta (@ (name "viewport")
                  (content "width=device-width, initial-scale=1")))
         (title ,title)
-        (script (@ (src "https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js")) ""))
-        (style ,css-style)
+        (script (@ (src "https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js")) "")
+        (style ,css-style))
       (body (h1 ,title)
         ,@(query
            (map-rows* post-fragment)
@@ -424,8 +424,8 @@ END-OF-CSS
           (meta (@ (name "viewport")
                    (content "width=device-width, initial-scale=1")))
           (title ,title)
-          (script (@ (src "https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js")) ""))
-          (style ,css-style)
+          (script (@ (src "https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js")) "")
+          (style ,css-style))
         (body (h1 ,title)
           ,@(edit-post-fragment* id))))))
 
