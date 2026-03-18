@@ -40,47 +40,25 @@ textarea { display: block; max-width: 100%; }
 span.ptime { font-size: 80%; }
 span.section { font-size: 80%; }
 span.title { font-weight: bold; display: block; }
-
 @media (min-width: 60rem) {
   form {
     grid-template-columns: 5rem 1fr 5rem;
     align-items: center;
   }
 
-  .form-body {
-    grid-column: 2;
-  }
-
-  .lsub {
-    grid-column: 1;
-    justify-self: start;
-  }
-
-  .rsub {
-    grid-column: 3;
-    justify-self: end;
-  }
+  .form-body { grid-column: 2; }
+  .lsub { grid-column: 1; justify-self: start; }
+  .rsub { grid-column: 3; justify-self: end; }
 }
-
 @media (max-width: 59.9rem) {
   form {
     grid-template-columns: 1fr 1fr;
     grid-template-areas: \"c c\" \"l r\";
   }
 
-  .form-body {
-    grid-area: c;
-  }
-
-  .lsub {
-    grid-area: l;
-    justify-self: start;
-  }
-
-  .rsub {
-    grid-area: r;
-    justify-self: end;
-  }
+  .form-body { grid-area: c; }
+  .lsub { grid-area: l; justify-self: start; }
+  .rsub { grid-area: r; justify-self: end; }
 }
 
 body { background: #F0ECE0; color: #000000; }
