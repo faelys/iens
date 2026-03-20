@@ -34,8 +34,8 @@ form {
   gap: 0.5rex;
   transition: all 0.5s ease-in;
 }
-.lsub { width: 4.5rem; }
-.rsub { width: 4.5rem; }
+.lsub { width: 4.5rem; height: 3rem; }
+.rsub { width: 4.5rem; height: 3rem; }
 textarea { display: block; max-width: 100%; }
 span.ptime { font-size: 80%; }
 span.section { font-size: 80%; }
@@ -330,8 +330,8 @@ END-OF-CSS
             (hx-swap "outerHTML")  (hx-post "xdo-edit"))
     (input (@ (type "submit") (name "submit") (class lsub) (value "Edit")))
     (div (@ (class "form-body"))
-      (p ,(conc "Mark: " mark))
       ,(post-p-fragment ptime section title url)
+      (p ,(conc "Mark: " mark))
       (pre (code ,notes))
       (p (label "Append to notes:"
         (textarea (@ (name "notes") (cols 80) (rows 5)) "")))
