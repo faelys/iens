@@ -59,7 +59,11 @@ span.title { font-weight: bold; display: block; }
   .form-body { grid-area: c; }
   .lsub { grid-area: l; justify-self: start; }
   .rsub { grid-area: r; justify-self: end; }
+  #load-new input { grid-area: c; }
 }
+
+#load-new { text-align: center; grid-template-columns: auto; }
+#load-new input { width: 4.5rem; height: 3rem; margin: auto; }
 
 body { background: #F0ECE0; color: #000000; }
 form { background: #FFFFFF; }
@@ -414,7 +418,31 @@ END-OF-CSS
       (body (h1 ,title)
         ,@(query
            (map-rows* post-fragment)
-           (sql db q))))))
+           (sql db q))
+        (form (@ (method GET) (action "new") (id "load-new")
+                 (hx-swap "outerHTML")  (hx-post "x-new"))
+          (input (@ (type "hidden") (name "last-id") (value
+            ,(query fetch-value (sql db "SELECT MAX(id) FROM gruik;")))))
+          (input (@ (type "submit") (name "submit") (value "Load"))))
+))))
+
+(define (new-fragment)
+  (catch-up)
+  (let ((last-id (string->number (required-input-var "last-id"))))
+(htmx-output
+    `(,@(query
+         (map-rows* post-fragment)
+         (sql db "SELECT id,mark,ptime,section,title,url FROM gruik WHERE id > ? AND mark >= 0;")
+         last-id)
+        (form (@ (method GET) (action "new") (id "load-new")
+                 (hx-swap "outerHTML")  (hx-post "x-new"))
+          (input (@ (type "hidden") (name "last-id") (value
+            ,(query fetch-value (sql db "SELECT MAX(id) FROM gruik;")))))
+          (input (@ (type "submit") (name "submit") (value "Load"))))
+))))
+
+(define (new-view)
+  (redirect "/"))
 
 (define (deleted-view)
   (catch-up)
@@ -523,6 +551,12 @@ END-OF-CSS
 (define route-deleted
   (preceded-by (char-seq "deleted")
                (result deleted-view)))
+(define route-new
+  (preceded-by (char-seq "new")
+               (result new-view)))
+(define route-x-new
+  (preceded-by (char-seq "x-new")
+               (result new-fragment)))
 (define route-edit
   (sequence* ((_  (char-seq "gruik/"))
               (id (as-string (one-or-more irc-digit))))
@@ -548,7 +582,9 @@ END-OF-CSS
                          route-deleted
                          route-edit
                          route-main
-                         route-ok)))))
+                         route-ok
+                         route-new
+                         route-x-new)))))
 
 (let* ((uri (get-environment-variable "REQUEST_URI"))
        (_   (if uri uri (die "Missing $REQUEST_URI")))
