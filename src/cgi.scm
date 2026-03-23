@@ -37,6 +37,8 @@ form {
 .lsub { width: 4.5rem; height: 3rem; }
 .rsub { width: 4.5rem; height: 3rem; }
 textarea { display: block; max-width: 100%; }
+.tag-list { column-width: 10rem; column-gap: 1rem; }
+.tag-list label { display: block; }
 span.ptime { font-size: 80%; }
 span.section { font-size: 80%; }
 span.title { font-weight: bold; display: block; }
@@ -340,7 +342,18 @@ END-OF-CSS
       (p (label "Append to notes:"
         (textarea (@ (name "notes") (cols 80) (rows 5)) "")))
       (p (label "Description:"
-        (textarea (@ (name "description") (cols 80) (rows 5)) ,description))))
+        (textarea (@ (name "description") (cols 80) (rows 5)) ,description)))
+      (fieldset (legend "Tags")
+        (details (@ (class tag-list)) (summary "Tags")
+          ,@(query
+              (map-rows*
+                (lambda (tid name checked)
+                  `(label
+                    (input (@ (type checkbox) (name tags) (value ,tid)
+                      ,@(if (= 0 checked) '() '((checked)))))
+                    ,name)))
+              (sql db "SELECT id,name,EXISTS (SELECT * FROM gruik_tags WHERE gruik_id=? AND tag_id = tag.id) FROM tag;")
+              id))))
     (input (@ (type "hidden") (name "id") (value ,id)))
     (input (@ (type "submit") (name "submit") (class rsub) (value "Cancel")))))
 
