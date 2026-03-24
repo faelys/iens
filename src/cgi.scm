@@ -441,17 +441,19 @@ END-OF-CSS
 
 (define (new-fragment)
   (catch-up)
-  (let ((last-id (string->number (required-input-var "last-id"))))
-(htmx-output
-    `(,@(query
-         (map-rows* post-fragment)
-         (sql db "SELECT id,mark,ptime,section,title,url FROM gruik WHERE id > ? AND mark >= 0;")
-         last-id)
+  (let* ((last-id (string->number (required-input-var "last-id")))
+         (frags (query
+                  (map-rows* post-fragment)
+                  (sql db "SELECT id,mark,ptime,section,title,url FROM gruik WHERE id > ? AND mark >= 0;")
+                  last-id))
+         (btn (if (null? frags) "Recheck" "More")))
+  (htmx-output
+    `(,@frags
         (form (@ (method GET) (action "new") (id "load-new")
                  (hx-swap "outerHTML")  (hx-post "x-new"))
           (input (@ (type "hidden") (name "last-id") (value
             ,(query fetch-value (sql db "SELECT MAX(id) FROM gruik;")))))
-          (input (@ (type "submit") (name "submit") (value "Load"))))
+          (input (@ (type "submit") (name "submit") (value ,btn))))
 ))))
 
 (define (new-view)
