@@ -372,7 +372,31 @@ END-OF-CSS
         (current-seconds)
         (required-input-var "notes")
         (required-input-var "description")
-        id))
+        id)
+      (let* ((n-tags (query fetch-value (sql db "SELECT MAX(id) FROM tag")))
+             (tags   (make-vector (+ 1 n-tags) 0)))
+        (let loop ((var input-list))
+          (unless (null? var)
+            (when (string=? (caar var) "tags")
+              (vector-set! tags (string->number (cadar var)) 1))
+            (loop (cdr var))))
+        (query
+          (for-each-row*
+            (lambda (tid) (vector-set! tags tid (- (vector-ref tags tid) 1))))
+          (sql db "SELECT tag_id FROM gruik_tags WHERE gruik_id=?;")
+          id)
+        (let loop ((tid n-tags))
+          (unless (= 0 tid)
+            (case (vector-ref tags tid)
+              ((1)
+                (exec
+                  (sql db "INSERT INTO gruik_tags(gruik_id,tag_id) VALUES (?,?);")
+                  id tid))
+              ((-1)
+                (exec
+                  (sql db "DELETE FROM gruik_tags WHERE gruik_id=? AND tag_id=?;")
+                  id tid)))
+            (loop (- tid 1))))))
     id))
 
 (define (bad-post-fragment id ptime section title url)
