@@ -26,8 +26,7 @@
 h1 { text-align: center; }
 .bad-post { background: #fcc; }
 .marked-post { background: #ccf; }
-.unmarked-post { }
-.edit-post { }
+.locked-post { background: #cfc; }
 form {
   margin: 1rex 0;
   display: grid;
@@ -81,6 +80,7 @@ a:hover { background: #007FBF; color: #F0E8E0; }
   a:hover { background: #4695f7; color: #103c48; }
   .bad-post { background: #783946; }
   .marked-post { background: #1849a6; }
+  .locked-post { background: #189956; }
 }
 END-OF-CSS
 )
@@ -254,7 +254,7 @@ END-OF-CSS
              section TEXT NOT NULL,
              title TEXT NOT NULL,
              url TEXT NOT NULL,
-             mark INTEGER NOT NULL DEFAULT FALSE,
+             mark INTEGER NOT NULL DEFAULT 0,
              ctime INTEGER NOT NULL,
              mtime INTEGER NOT NULL);"
           "CREATE UNIQUE INDEX i_gruik ON gruik(position);"
@@ -337,7 +337,8 @@ END-OF-CSS
     (input (@ (type "submit") (name "submit") (class lsub) (value "Edit")))
     (div (@ (class "form-body"))
       ,(post-p-fragment ptime section title url)
-      (p ,(conc "Mark: " mark))
+      (p ,(conc "Mark: " mark)
+        (label (input (@ (type checkbox) (name lock) (value yes))) "Lock"))
       (pre (code ,notes))
       (p (label "Append to notes:"
         (textarea (@ (name "notes") (cols 80) (rows 5)) "")))
@@ -368,10 +369,11 @@ END-OF-CSS
     (when (string=? "Edit" (required-input-var "submit"))
       (exec
         (sql/transient db
-          "UPDATE gruik SET mtime=?,notes=trim(notes||char(10)||?,char(10)),description=? WHERE mark=1 AND id=?;")
+          "UPDATE gruik SET mtime=?,notes=trim(notes||char(10)||?,char(10)),description=?,mark=? WHERE mark=1 AND id=?;")
         (current-seconds)
         (required-input-var "notes")
         (required-input-var "description")
+        (if (input-var "lock") 2 1)
         id)
       (let* ((n-tags (query fetch-value (sql db "SELECT MAX(id) FROM tag")))
              (tags   (make-vector (+ 1 n-tags) 0)))
@@ -408,6 +410,15 @@ END-OF-CSS
       ,(post-p-fragment ptime section title url))
     (input (@ (type "hidden") (name "id") (value ,id)))))
 
+(define (locked-post-fragment id ptime section title url)
+  `(form (@ (method "POST") (action "do-marked")
+            (id ,(conc "post-" id)) (class "locked-post")
+            (hx-swap "outerHTML")  (hx-post "xdo-marked"))
+    (input (@ (type "submit") (name "submit") (class lsub) (value "Unlock")))
+    (div (@ (class "form-body"))
+      ,(post-p-fragment ptime section title url))
+    (input (@ (type "hidden") (name "id") (value ,id)))))
+
 (define (marked-post-fragment id ptime section title url)
   `(form (@ (method "POST") (action "do-marked")
             (id ,(conc "post-" id)) (class "marked-post")
@@ -432,6 +443,7 @@ END-OF-CSS
   (case mark
     ((0)  (unmarked-post-fragment id ptime section title url))
     ((1)  (marked-post-fragment   id ptime section title url))
+    ((2)  (locked-post-fragment   id ptime section title url))
     (else (bad-post-fragment      id ptime section title url))))
 
 (define (post-htmx id)
