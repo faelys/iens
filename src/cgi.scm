@@ -256,7 +256,8 @@ END-OF-CSS
              url TEXT NOT NULL,
              mark INTEGER NOT NULL DEFAULT 0,
              ctime INTEGER NOT NULL,
-             mtime INTEGER NOT NULL);"
+             mtime INTEGER NOT NULL,
+             stime INTEGER);"
           "CREATE UNIQUE INDEX i_gruik ON gruik(position);"
           "CREATE INDEX i_gruik_time ON gruik(ptime);"
           "CREATE TABLE gruik_tags
@@ -523,8 +524,12 @@ END-OF-CSS
     "SELECT id,mark,ptime,section,title,url FROM gruik WHERE mark >= 0;"))
 
 (define (db-set-mark id old-v new-v)
-  (exec (sql db "UPDATE gruik SET mtime=?, mark=? WHERE mark=? AND id=?;")
-        (current-seconds) new-v old-v id))
+  (exec (sql db "UPDATE gruik SET mtime=?, mark=?, stime=? WHERE mark=? AND id=?;")
+        (current-seconds)
+        new-v
+        (if (= 1 new-v) (current-seconds) '())
+        old-v
+        id))
 
 (define (xdo-edit)
   (let ((id (db-edit)))
