@@ -324,6 +324,23 @@ END-OF-CSS
   (write-string location)
   (write-string "\r\n\r\n"))
 
+(define (spinner-bar x y height beg)
+  `(rect (@ (x ,x) (y ,y) (width 15) (height ,height) (rx 6))
+    (animate (@ (attributeName height) (begin ,beg) (dur "1s")
+                (values "120;110;100;90;80;70;60;50;40;140;120")
+                (calcMode linear) (repeatCount indefinite)))
+    (animate (@ (attributeName y) (begin ,beg) (dur "1s")
+                (values "10;15;20;25;30;35;40;45;50;0;10")
+                (calcMode linear) (repeatCount indefinite)))))
+(define (spinner)
+  `(svg (@ (width 16) (height 16) (class spinner)
+           (viewBox "0 0 135 140") (xmlns "http://www.w3.org/2000/svg"))
+    ,(spinner-bar   0 10 120 "0.5s")
+    ,(spinner-bar  30 10 120 "0.25s")
+    ,(spinner-bar  60  0 140 "0s")
+    ,(spinner-bar  90 10 120 "0.25s")
+    ,(spinner-bar 120 10 120 "0.5s")))
+
 (define (post-p-fragment ptime section title url)
   `(p
     (span (@ (class "ptime")) ,ptime)
@@ -613,6 +630,9 @@ END-OF-CSS
 (define route-x-new
   (preceded-by (char-seq "x-new")
                (result new-fragment)))
+(define route-spinner
+  (preceded-by (char-seq "spinner")
+               (result (lambda () (htmx-output (spinner))))))
 (define route-edit
   (sequence* ((_  (char-seq "gruik/"))
               (id (as-string (one-or-more irc-digit))))
@@ -640,6 +660,7 @@ END-OF-CSS
                          route-main
                          route-ok
                          route-new
+                         route-spinner
                          route-x-new)))))
 
 (let* ((uri (get-environment-variable "REQUEST_URI"))
