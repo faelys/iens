@@ -60,11 +60,15 @@ span.title { font-weight: bold; display: block; }
   .form-body { grid-area: c; }
   .lsub { grid-area: l; justify-self: start; }
   .rsub { grid-area: r; justify-self: end; }
-  #load-new input { grid-area: c; }
+  #load-new input, #load-new svg { grid-area: c; }
 }
 
 #load-new { text-align: center; grid-template-columns: auto; }
 #load-new input { width: 4.5rem; height: 3rem; margin: auto; }
+#load-new svg   { width: 4.5rem; height: 3rem; margin: auto; fill: #494949; }
+#load-new svg { display: none; }
+#load-new.htmx-request svg { display: block; }
+.htmx-request input { display: none; }
 
 body { background: #F0ECE0; color: #000000; }
 form { background: #FFFFFF; }
@@ -81,6 +85,7 @@ a:hover { background: #007FBF; color: #F0E8E0; }
   .bad-post { background: #783946; }
   .marked-post { background: #1849a6; }
   .locked-post { background: #189956; }
+  #load-new svg { fill: #cad8d9; }
 }
 END-OF-CSS
 )
@@ -488,6 +493,7 @@ END-OF-CSS
            (sql db q))
         (form (@ (method GET) (action "new") (id "load-new")
                  (hx-swap "outerHTML")  (hx-post "x-new"))
+          ,(spinner)
           (input (@ (type "hidden") (name "last-id") (value
             ,(query fetch-value (sql db "SELECT MAX(id) FROM gruik;")))))
           (input (@ (type "submit") (name "submit") (value "Load"))))
@@ -505,6 +511,7 @@ END-OF-CSS
     `(,@frags
         (form (@ (method GET) (action "new") (id "load-new")
                  (hx-swap "outerHTML")  (hx-post "x-new"))
+          ,(spinner)
           (input (@ (type "hidden") (name "last-id") (value
             ,(query fetch-value (sql db "SELECT MAX(id) FROM gruik;")))))
           (input (@ (type "submit") (name "submit") (value ,btn))))
