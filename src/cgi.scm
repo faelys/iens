@@ -240,7 +240,9 @@ END-OF-CSS
 (define root (get-environment-variable "DOCUMENT_ROOT"))
 (when (not root)
   (die "Missing $DOCUMENT_ROOT"))
-(define db-name (string-append root "/./iens.sqlite"))
+(define db-name (get-environment-variable "IENS_DB"))
+(when (not db-name)
+    (die "Missing $IENS_DB"))
 
 (define db (open-database db-name))
 (exec (sql/transient db "PRAGMA foreign_keys = ON;"))
