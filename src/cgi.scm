@@ -308,6 +308,11 @@ END-OF-CSS
         now))))
 
 (define (catch-up)
+  (let* ((span (get-config "gruik-clean")))
+    (when (number? span)
+      (exec
+        (sql db "DELETE FROM gruik WHERE mark<0 AND mtime<?;")
+        (- (current-seconds) span))))
   (let ((src-path (get-config "gruik-source")))
     (when (not src-path) (die "No source configured"))
     (let* ((fd (file-open src-path open/rdonly))
