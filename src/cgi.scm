@@ -353,9 +353,9 @@ END-OF-CSS
     ,(spinner-bar  90 10 120 "0.25s")
     ,(spinner-bar 120 10 120 "0.5s")))
 
-(define (post-p-fragment ptime section title url)
+(define (post-p-fragment id ptime section title url)
   `(p
-    (span (@ (class "ptime")) ,ptime)
+    (span (@ (class "ptime") (title ,id)) ,ptime)
     (span (@ (class "section")) ,section)
     (span (@ (class "title")) ,title)
     (a (@ (href ,url)) ,url)))
@@ -366,7 +366,7 @@ END-OF-CSS
             (hx-swap "outerHTML")  (hx-post "xdo-edit"))
     (input (@ (type "submit") (name "submit") (class lsub) (value "Edit")))
     (div (@ (class "form-body"))
-      ,(post-p-fragment ptime section title url)
+      ,(post-p-fragment id ptime section title url)
       (p ,(conc "Mark: " mark)
         (label (input (@ (type checkbox) (name lock) (value yes))) "Lock"))
       (pre (code ,notes))
@@ -437,7 +437,7 @@ END-OF-CSS
             (hx-swap "outerHTML")  (hx-post "xdo-undelete"))
     (input (@ (type "submit") (name "submit") (class lsub) (value "Restore")))
     (div (@ (class "form-body"))
-      ,(post-p-fragment ptime section title url))
+      ,(post-p-fragment id ptime section title url))
     (input (@ (type "hidden") (name "id") (value ,id)))))
 
 (define (locked-post-fragment id ptime section title url)
@@ -446,7 +446,7 @@ END-OF-CSS
             (hx-swap "outerHTML")  (hx-post "xdo-marked"))
     (input (@ (type "submit") (name "submit") (class lsub) (value "Unlock")))
     (div (@ (class "form-body"))
-      ,(post-p-fragment ptime section title url))
+      ,(post-p-fragment id ptime section title url))
     (input (@ (type "hidden") (name "id") (value ,id)))))
 
 (define (marked-post-fragment id ptime section title url)
@@ -455,7 +455,7 @@ END-OF-CSS
             (hx-swap "outerHTML")  (hx-post "xdo-marked"))
     (input (@ (type "submit") (name "submit") (class lsub) (value "Edit")))
     (div (@ (class "form-body"))
-      ,(post-p-fragment ptime section title url))
+      ,(post-p-fragment id ptime section title url))
     (input (@ (type "hidden") (name "id") (value ,id)))
     (input (@ (type "submit") (name "submit") (class rsub) (value "Unmark")))))
 
@@ -465,7 +465,7 @@ END-OF-CSS
             (hx-swap "outerHTML")  (hx-post "xdo-unmarked"))
     (input (@ (type "submit") (name "submit") (class lsub) (value "Mark")))
     (div (@ (class "form-body"))
-      ,(post-p-fragment ptime section title url))
+      ,(post-p-fragment id ptime section title url))
     (input (@ (type "hidden") (name "id") (value ,id)))
     (input (@ (type "submit") (name "submit") (class rsub) (value "Delete")))))
 
