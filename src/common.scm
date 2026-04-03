@@ -48,7 +48,27 @@
           "CREATE UNIQUE INDEX i_rel0 ON tagrel(url_id,tag_id);"
           "CREATE INDEX i_rel1 ON tagrel(url_id);"
           "CREATE INDEX i_rel2 ON tagrel(tag_id);"
-          "PRAGMA user_version = 2;")))
+          "CREATE TABLE gruik
+            (id INTEGER PRIMARY KEY,
+             position INTEGER NOT NULL,
+             notes TEXT NOT NULL,
+             description TEXT,
+             ptime INTEGER NOT NULL,
+             section TEXT NOT NULL,
+             title TEXT NOT NULL,
+             url TEXT NOT NULL,
+             mark INTEGER NOT NULL DEFAULT 0,
+             ctime INTEGER NOT NULL,
+             mtime INTEGER NOT NULL,
+             stime INTEGER);"
+          "CREATE UNIQUE INDEX i_gruik ON gruik(position);"
+          "CREATE INDEX i_gruik_time ON gruik(ptime);"
+          "CREATE TABLE gruik_tags
+            (gruik_id REFERENCES gruik(id) ON UPDATE CASCADE ON DELETE CASCADE,
+             tag_id REFERENCES tag(id) ON UPDATE CASCADE ON DELETE CASCADE);"
+          "CREATE UNIQUE INDEX i_gruik_rel ON gruik_tags(gruik_id,tag_id);"
+          "CREATE INDEX i_gruik_tags ON gruik_tags(tag_id,gruik_id);"
+          "PRAGMA user_version = 3;")))
 
 (when (= 0 (db-version))
   (write-line "Updating database schema from v0 to v1")
@@ -68,3 +88,28 @@
     (lambda (s) (exec (sql/transient db s)))
     (list "ALTER TABLE feed ADD COLUMN mtime INTEGER;"
           "PRAGMA user_version = 2;")))
+
+(when (= 2 (db-version))
+  (for-each
+    (lambda (s) (exec (sql/transient db s)))
+    (list "CREATE TABLE gruik
+            (id INTEGER PRIMARY KEY,
+             position INTEGER NOT NULL,
+             notes TEXT NOT NULL,
+             description TEXT,
+             ptime INTEGER NOT NULL,
+             section TEXT NOT NULL,
+             title TEXT NOT NULL,
+             url TEXT NOT NULL,
+             mark INTEGER NOT NULL DEFAULT 0,
+             ctime INTEGER NOT NULL,
+             mtime INTEGER NOT NULL,
+             stime INTEGER);"
+          "CREATE UNIQUE INDEX i_gruik ON gruik(position);"
+          "CREATE INDEX i_gruik_time ON gruik(ptime);"
+          "CREATE TABLE gruik_tags
+            (gruik_id REFERENCES gruik(id) ON UPDATE CASCADE ON DELETE CASCADE,
+             tag_id REFERENCES tag(id) ON UPDATE CASCADE ON DELETE CASCADE);"
+          "CREATE UNIQUE INDEX i_gruik_rel ON gruik_tags(gruik_id,tag_id);"
+          "CREATE INDEX i_gruik_tags ON gruik_tags(tag_id,gruik_id);"
+          "PRAGMA user_version = 3;")))
