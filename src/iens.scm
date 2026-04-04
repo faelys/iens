@@ -71,6 +71,7 @@
         (set! cmd-list (cons (list (symbol->string 'name) str first) cmd-list))
         (define (name . args) . rest)))))
 
+(define vt100-alert        "\033[31m")
 (define vt100-entry-header "\033[34m")
 (define vt100-reset        "\033[0m")
 
@@ -1015,6 +1016,59 @@
                          (guess-type new-value)
                          new-value))
         (else (assert #f "Too many arguments to edit-descr " args))))))
+
+;;;;;;;;;;;;;;;;;;;;;
+;; Gruik Management
+
+(define (pull-gruiks* mtime mark)
+  (let ((last-id (query fetch-value (sql db "SELECT MAX(id) FROM entry;"))))
+    (exec
+      (sql db "INSERT OR IGNORE
+                 INTO entry(url,type,description,notes,ctime,mtime)
+               SELECT url,
+                      CASE WHEN description IS NULL THEN NULL
+                           WHEN substr(description,1,1)='<' THEN 'html'
+                           WHEN substr(description,1,3)=' - '
+                            OR substr(description,1,3)=' + ' THEN 'markdown-li'
+                           ELSE 'text' END,
+                      trim(description,char(10))||char(10),
+                      trim(notes,char(10))||char(10),
+                      stime,?
+               FROM gruik
+               WHERE mark=? AND url NOT IN (SELECT url FROM entry);")
+      mtime
+      mark)
+    (exec
+      (sql db "INSERT OR IGNORE INTO tagrel(url_id,tag_id)
+               SELECT entry.id,tag_id
+               FROM gruik_tags LEFT OUTER JOIN gruik ON gruik_id = gruik.id
+                               LEFT OUTER JOIN entry ON gruik.url = entry.url
+               WHERE gruik.mark=?;")
+      mark)
+    (exec
+      (sql db "DELETE FROM gruik WHERE mark=?;")
+      mark)
+    (print-selection (conc "WHERE entry.id > " last-id)))
+    (update-feed-cache mtime))
+
+(defcmd (pull-gruiks mark)
+  "mark" "import gruiks at the given mark level"
+  (let* ((wh (conc "WHERE url IN (SELECT url FROM gruik WHERE mark=" mark ")"))
+         (n  (query fetch-value
+               (sql/transient db (conc "SELECT COUNT(id) FROM entry " wh)))))
+    (if (zero? n)
+        (pull-gruiks* (current-seconds) mark)
+        (begin
+          (write-line (conc vt100-alert "Conflicting gruiks:" vt100-reset))
+          (query
+            (for-each-row* (lambda (id url notes)
+              (write-line (conc id " - " vt100-entry-header url vt100-reset))
+              (write-line notes)))
+            (sql db "SELECT id,url,notes FROM gruik
+                     WHERE mark=? AND url IN (SELECT url FROM entry);")
+            mark)
+          (write-line (conc vt100-alert "Conflicting entries:" vt100-reset))
+          (print-selection wh)))))
 
 ;;;;;;;;;;;;;;;;;;;;
 ;; Feed Generation
