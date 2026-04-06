@@ -1070,6 +1070,14 @@
           (write-line (conc vt100-alert "Conflicting entries:" vt100-reset))
           (print-selection wh)))))
 
+(defcmd (catchup-gruik)
+  "" "skip all past unfetched gruiks"
+  (let ((src-path (get-config "gruik-source")))
+    (write-line (conc "Before: " (get-config "gruik-seen")))
+    (when src-path
+      (set-config "gruik-seen" (file-size src-path)))
+    (write-line (conc "After " (get-config "gruik-seen")))))
+
 ;;;;;;;;;;;;;;;;;;;;
 ;; Feed Generation
 
