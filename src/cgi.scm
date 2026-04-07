@@ -307,6 +307,20 @@ END-OF-CSS
   (write-string location)
   (write-string "\r\n\r\n"))
 
+(define (auto-descr id)
+  (let ((row (query fetch-row
+                    (sql db "SELECT section,url FROM gruik
+                             WHERE id=? AND COALESCE(description,'')='';")
+                    id)))
+    (unless (null? row)
+      (let ((section (car row))
+            (url     (cadr row)))
+        (exec
+          (sql db "UPDATE gruik SET description=?
+                   WHERE id=? AND COALESCE(description,'')='';")
+          (conc " + [](" url ")\n(via " section " sur #gcufeed)")
+          id)))))
+
 (define (spinner-bar x y height beg)
   `(rect (@ (x ,x) (y ,y) (width 15) (height ,height) (rx 6))
     (animate (@ (attributeName height) (begin ,beg) (dur "1s")
@@ -572,7 +586,9 @@ END-OF-CSS
   (let ((id     (required-input-var "id"))
         (submit (required-input-var "submit")))
     (cond
-      ((string=? submit "Mark")   (db-set-mark id 0  1) (redirect "/"))
+      ((string=? submit "Mark")   (db-set-mark id 0  1)
+                                  (auto-descr id)
+                                  (redirect "/"))
       ((string=? submit "Delete") (db-set-mark id 0 -1) (redirect "/"))
       (else                       (bad-input "bad value for submit")))))
 
@@ -580,7 +596,9 @@ END-OF-CSS
   (let ((id     (required-input-var "id"))
         (submit (required-input-var "submit")))
     (cond
-      ((string=? submit "Mark")   (db-set-mark id 0  1) (post-htmx id))
+      ((string=? submit "Mark")   (db-set-mark id 0  1)
+                                  (auto-descr id)
+                                  (post-htmx id))
       ((string=? submit "Delete") (db-set-mark id 0 -1) (htmx-output '()))
       (else                       (bad-input "bad value for submit")))))
 
