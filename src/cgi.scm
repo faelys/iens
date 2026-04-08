@@ -19,6 +19,9 @@
   (chicken string)
   (chicken time)
   comparse
+  openssl ; must be above http-client
+  http-client
+  rss
   sql-de-lite
   sxml-serializer)
 
@@ -249,7 +252,7 @@ END-OF-CSS
 
 (include "common.scm")
 
-(unless (= 3 (db-version))
+(unless (= 4 (db-version))
   (die "Unexpectad database version"))
 
 
@@ -307,6 +310,20 @@ END-OF-CSS
   (write-string location)
   (write-string "\r\n\r\n"))
 
+(define (comment-link section url)
+  (let* ((rss-url  (query fetch-value
+                          (sql db "SELECT url FROM source_rss WHERE name=?;")
+                          section)))
+    (if rss-url
+      (let ((rss (with-input-from-request rss-url #f rss:read)))
+        (let loop ((items (rss:feed-items rss)))
+          (cond
+            ((null? items) #f)
+            ((string=? url (rss:item-link (car items)))
+              (alist-ref 'comments (rss:item-attributes (car items))))
+            (else (loop (cdr items))))))
+      #f)))
+
 (define (auto-descr id)
   (let ((row (query fetch-row
                     (sql db "SELECT section,url FROM gruik
@@ -314,12 +331,21 @@ END-OF-CSS
                     id)))
     (unless (null? row)
       (let ((section (car row))
-            (url     (cadr row)))
-        (exec
-          (sql db "UPDATE gruik SET description=?
-                   WHERE id=? AND COALESCE(description,'')='';")
-          (conc " + [](" url ")\n(via " section " sur #gcufeed)")
-          id)))))
+            (url     (cadr row))
+            (comm    (apply comment-link row)))
+        (if comm
+          (exec
+            (sql db "UPDATE gruik
+                     SET description=?,notes=trim(notes||char(10)||?,char(10))
+                     WHERE id=? AND COALESCE(description,'')='';")
+            (conc " + [](" url ")\n(via [" section "](" comm ") sur #gcufeed)")
+            comm
+            id)
+          (exec
+            (sql db "UPDATE gruik SET description=?
+                     WHERE id=? AND COALESCE(description,'')='';")
+            (conc " + [](" url ")\n(via " section " sur #gcufeed)")
+            id))))))
 
 (define (spinner-bar x y height beg)
   `(rect (@ (x ,x) (y ,y) (width 15) (height ,height) (rx 6))

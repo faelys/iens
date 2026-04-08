@@ -60,7 +60,8 @@
              mark INTEGER NOT NULL DEFAULT 0,
              ctime INTEGER NOT NULL,
              mtime INTEGER NOT NULL,
-             stime INTEGER);"
+             stime INTEGER,
+             entry_id INTEGER REFERENCES entry(id));"
           "CREATE UNIQUE INDEX i_gruik ON gruik(position);"
           "CREATE INDEX i_gruik_time ON gruik(ptime);"
           "CREATE TABLE gruik_tags
@@ -68,7 +69,12 @@
              tag_id REFERENCES tag(id) ON UPDATE CASCADE ON DELETE CASCADE);"
           "CREATE UNIQUE INDEX i_gruik_rel ON gruik_tags(gruik_id,tag_id);"
           "CREATE INDEX i_gruik_tags ON gruik_tags(tag_id,gruik_id);"
-          "PRAGMA user_version = 3;")))
+          "CREATE TABLE source_rss
+            (id INTEGER PRIMARY KEY,
+             name TEXT NOT NULL,
+             url TEXT NOT NULL);"
+          "CREATE UNIQUE INDEX i_source_rss ON source_rss(name);"
+          "PRAGMA user_version = 4;")))
 
 (when (= 0 (db-version))
   (write-line "Updating database schema from v0 to v1")
@@ -113,3 +119,17 @@
           "CREATE UNIQUE INDEX i_gruik_rel ON gruik_tags(gruik_id,tag_id);"
           "CREATE INDEX i_gruik_tags ON gruik_tags(tag_id,gruik_id);"
           "PRAGMA user_version = 3;")))
+
+(when (= 3 (db-version))
+  (for-each
+    (lambda (s) (exec (sql/transient db s)))
+    (list "CREATE TABLE source_rss
+            (id INTEGER PRIMARY KEY,
+             name TEXT NOT NULL,
+             url TEXT NOT NULL);"
+          "CREATE UNIQUE INDEX i_source_rss ON source_rss(name);"
+          "INSERT INTO source_rss(name,url) VALUES
+            ('Hacker News','https://news.ycombinator.com/rss'),
+            ('Lobsters','https://lobste.rs/rss');"
+          "ALTER TABLE gruik ADD COLUMN entry_id INTEGER REFERENCES entry(id);"
+          "PRAGMA user_version = 4;")))
