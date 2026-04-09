@@ -25,7 +25,9 @@
         (chicken time posix)
         breadline
         breadline-scheme-completion
+        http-client
         lowdown
+        rss
         sql-de-lite
         srfi-1
         sxml-serializer)
@@ -958,18 +960,46 @@
 ;;;;;;;;;;;;;;;;;;;;
 ;; Editor Spawning
 
+(define (comment-link section url)
+  (let* ((rss-url  (query fetch-value
+                          (sql db "SELECT url FROM source_rss WHERE name=?;")
+                          section)))
+    (if rss-url
+      (let ((rss (with-input-from-request rss-url #f rss:read)))
+        (let loop ((items (rss:feed-items rss)))
+          (cond
+            ((null? items) #f)
+            ((string=? url (rss:item-link (car items)))
+              (alist-ref 'comments (rss:item-attributes (car items))))
+            (else (loop (cdr items))))))
+      #f)))
+
 (define (edit-descr* entry-id)
   (let ((file-name (create-temporary-file
                      (string-append "."
                        (get-config/default "description-ext" "txt"))))
         (fields
            (query fetch-row
-                  (sql db "SELECT description,notes FROM entry WHERE id=?;")
+                  (sql db "SELECT description,notes,url FROM entry WHERE id=?;")
                   entry-id)))
-    (when fields
+    (unless (null? fields)
       (call-with-output-file file-name
         (lambda (port)
-          (unless (null? (car fields))
+          (if (or (null? (car fields)) (string=? (car fields) ""))
+            (let* ((s-sec (substring-index "[" (cadr fields)))
+                   (e-sec (if s-sec
+                              (substring-index "]" (cadr fields) s-sec)
+                              #f))
+                   (sect  (if e-sec
+                              (substring (cadr fields) (+ s-sec 1) e-sec) #f))
+                   (comm  (if sect (comment-link sect (caddr fields)) #f)))
+              (write-string (conc " + [](" (caddr fields) ")\n") #f port)
+              (when sect
+                (write-string
+                  (conc "(via "
+                    (if comm (conc "[" sect "](" comm ")") sect)
+                    " sur #gcufeed)\n")
+                  #f port)))
             (write-string (car fields) #f port))
           (unless (null? (cadr fields))
             (write-string "-+-+-\n" #f port)
