@@ -27,6 +27,7 @@
         breadline-scheme-completion
         http-client
         lowdown
+        ncurses
         rss
         sql-de-lite
         srfi-1
@@ -1046,6 +1047,162 @@
                          (guess-type new-value)
                          new-value))
         (else (assert #f "Too many arguments to edit-descr " args))))))
+
+(define (auto-cols widths avail)
+  (letrec ((len     (vector-length widths))
+         (w-slice (lambda (start len acc)
+                    (if (< len 1)
+                        acc
+                        (w-slice (+ start 1) (- len 1)
+                                 (max acc (vector-ref widths start))))))
+         (w-total (lambda (start stride acc)
+                    (if (< (+ start stride) len)
+                        (w-total (+ start stride)
+                                 stride
+                                 (cons (+ (car acc) 1 (w-slice start stride 0))
+                                       acc))
+                        (cons (+ (car acc) (w-slice start (- len start) 0))
+                              acc))))
+         (h-cols  (lambda (ncols) (quotient (+ len ncols -1) ncols)))
+         (w-cols  (lambda (ncols) (w-total 0 (h-cols ncols) (list 0)))))
+    (let loop ((ncols len) (best #f))
+      (if (zero? ncols) best
+        (let ((w (w-cols ncols)) (h (h-cols ncols)))
+          (loop (- ncols 1)
+                (if (and (< (car w) avail)
+                         (or (not best) (<= h (car best))))
+                    (list h (list->vector (reverse (cdr w))))
+                    best)))))))
+
+(define (select-tags** entry-id tags)
+  (let* ((ntags (vector-length tags))
+         (state (list->vector (map cadddr (vector->list tags))))
+         (cols (auto-cols (list->vector
+                            (map (lambda (x)
+                                   (+ (string-length (cadr x))
+                                      (string-length (caddr x))))
+                                 (vector->list tags))) (COLS)))
+         (stride (car cols))
+         (x-cols (cadr cols))
+         (show-tag (lambda (index sel)
+                     (unless (zero? (vector-ref state index))
+;                      (attron (COLOR_PAIR 1)))
+                       (attron A_REVERSE))
+                     (when (= index sel)
+;                      (attron A_REVERSE))
+                       (attron A_UNDERLINE))
+                     (mvprintw
+                       (remainder index stride)
+                       (vector-ref x-cols (quotient index stride))
+                       "~A~A"
+                       (cadr (vector-ref tags index))
+                       (caddr (vector-ref tags index)))
+                     (when (= index sel)
+;                      (attroff A_REVERSE))
+                       (attroff A_UNDERLINE))
+                     (unless (zero? (vector-ref state index))
+;                      (attroff (COLOR_PAIR 1)))))
+                       (attroff A_REVERSE))))
+         (update-tags (lambda (old new) (show-tag old new) (show-tag new new))))
+    (keypad (stdscr) #t)
+    (noecho)
+    (curs_set 0)
+;   (start_color)
+;   (init_pair 1 COLOR_BLUE COLOR_BLACK)
+    (let init ((index 0))
+      (when (< index ntags)
+        (show-tag index 0)
+        (init (+ index 1))))
+    (let loop ((sel 0))
+      (let ((c (char->integer (getch))))
+        (cond
+          ((= c KEY_UP)
+            (let ((next-sel (modulo (- sel 1) ntags)))
+              (update-tags sel next-sel)
+              (loop next-sel)))
+          ((= c KEY_DOWN)
+            (let ((next-sel (modulo (+ sel 1) ntags)))
+              (update-tags sel next-sel)
+              (loop next-sel)))
+          ((= c KEY_LEFT)
+            (let ((next-sel (if (>= sel stride)
+                                (- sel stride)
+                                (min (+ sel (- ntags (modulo ntags stride)))
+                                     (- ntags 1)))))
+              (update-tags sel next-sel)
+              (loop next-sel)))
+          ((= c KEY_RIGHT)
+            (let ((next-sel (cond ((< (+ sel stride) ntags)
+                                    (+ sel stride))
+                                  ((< sel (- ntags (modulo ntags stride)))
+                                    (- ntags 1))
+                                  (else (modulo sel stride)))))
+              (update-tags sel next-sel)
+              (loop next-sel)))
+          ((= c 32)
+            (vector-set! state sel (- 1 (vector-ref state sel)))
+            (show-tag sel sel)
+            (loop sel))
+          ((= c 10)
+            (let result ((index 0) (add '()) (del '()))
+              (cond
+                ((>= index ntags)
+                  (list add del))
+                ((= (cadddr (vector-ref tags index)) (vector-ref state index))
+                  (result (+ index 1) add del))
+                ((zero? (vector-ref state index))
+                  (result (+ index 1) add
+                          (cons (cadr (vector-ref tags index)) del)))
+                (else
+                  (result (+ index 1)
+                          (cons (cadr (vector-ref tags index)) add)
+                          del)))))
+          ((= c 27) '(()()))
+          ((or (<= 65 c 90) (<= 97 c 122))
+            (let search ((prev-sel sel)
+                         (prev-ch  (char->integer (string-ref
+                                           (cadr (vector-ref tags sel)) 0))))
+              (let* ((next-sel (modulo (+ prev-sel 1) ntags))
+                     (next-ch  (char->integer (string-ref
+                                       (cadr (vector-ref tags next-sel)) 0))))
+                (cond
+                  ((= next-sel sel)
+                    (loop sel))
+                  ((or (= next-ch c) (< prev-ch c next-ch))
+                    (update-tags sel next-sel)
+                    (loop next-sel))
+                  (else (search next-sel next-ch))))))
+          (else (mvprintw (+ 1 stride) 0 "~S ~S" KEY_DOWN c) (loop sel)))))))
+
+(define (select-tags* entry-id)
+  (if (update-allowed? entry-id)
+    (let ((tags (list->vector (query
+                   (map-rows* (lambda (id name count active)
+                                (list id name (conc " (" count ")")
+                                      active)))
+                   (sql db
+                    "SELECT id,name,COUNT(url_id),COALESCE(MAX(url_id==?),0)
+                     FROM tag LEFT OUTER JOIN tagrel ON tag_id=tag.id
+                     GROUP BY tag.name;")
+                   entry-id))))
+      (dynamic-wind initscr (lambda () (select-tags** entry-id tags)) endwin))
+    '(()())))
+
+(defcmd (select-tags . args)
+  "[[mtime] entry-id]" "Interactively select tags using dialog(1)"
+  (let* ((entry-id (case (length args)
+                     ((0) cur-entry)
+                     ((1) (car args))
+                     ((2) (cadr args))
+                     (else
+                       (assert #f "Too many arguments to select-tags " args))))
+         (mtime    (if (= 2 (length args)) (car args) (current-seconds)))
+         (changes  (select-tags* entry-id))
+         (added    (car changes))
+         (removed  (cadr changes)))
+    (unless-protected entry-id
+      (untag* (- mtime 1) entry-id removed)
+      (tag* mtime entry-id added))))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Gruik Management
