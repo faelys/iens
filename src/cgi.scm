@@ -267,6 +267,24 @@ END-OF-CSS
         result
         default-value)))
 
+(define (line->notes line max-width)
+  (let loop ((rest (string-split line " " #t))
+             (lines  '())
+             (words  ""))
+    (cond
+      ((null? rest)
+        (reverse-string-append (cons words lines)))
+      ((<= (+ (string-length words) 1 (string-length (car rest))) max-width)
+        (loop (cdr rest)
+              lines
+              (string-append words
+                             (if (string=? words "") "" " ")
+                             (car rest))))
+      (else
+        (loop (cdr rest)
+              (cons (string-append words "\n") lines)
+              (car rest))))))
+
 (define (insert-line line offset)
   (let ((parsed (parse irc-line line))
         (now    (current-seconds)))
@@ -275,7 +293,7 @@ END-OF-CSS
         (sql db
           "INSERT INTO gruik(position, notes, ptime, section, title, url, ctime, mtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?);")
         offset
-        line
+        (line->notes line 79)
         (car parsed)
         (list-ref parsed 2)
         (list-ref parsed 3)
