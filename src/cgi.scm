@@ -404,7 +404,7 @@ END-OF-CSS
       (p (label "Append to notes:"
         (textarea (@ (name "notes") (cols 80) (rows 5)) "")))
       (p (label "Description:"
-        (textarea (@ (name "description") (cols 80) (rows 5)) ,description)))
+        (textarea (@ (name "description") (cols 80) (rows 12)) ,description)))
       (fieldset (legend "Tags")
         (details (@ (class tag-list)) (summary "Tags")
           ,@(query
