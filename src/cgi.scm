@@ -602,7 +602,7 @@ END-OF-CSS
         (submit (required-input-var "submit")))
     (cond
       ((string=? submit "Edit")   (redirect (conc "/gruik/" id)))
-      ((string=? submit "Unmark") (db-set-mark id 0 -1) (redirect "/"))
+      ((string=? submit "Unmark") (db-set-mark id 1 0) (redirect "/"))
       (else                       (bad-input "bad value for submit")))))
 
 (define (xdo-marked)
