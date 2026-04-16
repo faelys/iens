@@ -472,13 +472,13 @@ END-OF-CSS
     (input (@ (type "hidden") (name "id") (value ,id)))))
 
 (define (locked-post-fragment id ptime section title url)
-  `(form (@ (method "POST") (action "do-marked")
+  `(form (@ (method "POST") (action "do-locked")
             (id ,(conc "post-" id)) (class "locked-post")
-            (hx-swap "outerHTML")  (hx-post "xdo-marked"))
-    (input (@ (type "submit") (name "submit") (class lsub) (value "Unlock")))
+            (hx-swap "outerHTML")  (hx-post "xdo-locked"))
     (div (@ (class "form-body"))
       ,(post-p-fragment id ptime section title url))
-    (input (@ (type "hidden") (name "id") (value ,id)))))
+    (input (@ (type "hidden") (name "id") (value ,id)))
+    (input (@ (type "submit") (name "submit") (class rsub) (value "Unlock")))))
 
 (define (marked-post-fragment id ptime section title url)
   `(form (@ (method "POST") (action "do-marked")
@@ -597,6 +597,21 @@ END-OF-CSS
   (let ((id (db-edit)))
     (post-htmx id)))
 
+(define (do-locked)
+  (let ((id     (required-input-var "id"))
+        (submit (required-input-var "submit")))
+    (cond
+      ((string=? submit "Unlock") (db-set-mark id 2 1)
+                                  (redirect (conc "/gruik/" id)))
+      (else                       (bad-input "bad value for submit")))))
+
+(define (xdo-locked)
+  (let ((id     (required-input-var "id"))
+        (submit (required-input-var "submit")))
+    (cond
+      ((string=? submit "Unlock") (db-set-mark id 2 1) (post-htmx id))
+      (else                       (bad-input "bad value for submit")))))
+
 (define (do-marked)
   (let ((id     (required-input-var "id"))
         (submit (required-input-var "submit")))
@@ -652,6 +667,12 @@ END-OF-CSS
 (define route-xdo-edit
   (preceded-by (char-seq "xdo-edit")
                (result xdo-edit)))
+(define route-do-locked
+  (preceded-by (char-seq "do-locked")
+               (result do-locked)))
+(define route-xdo-locked
+  (preceded-by (char-seq "xdo-locked")
+               (result xdo-locked)))
 (define route-do-marked
   (preceded-by (char-seq "do-marked")
                (result do-marked)))
@@ -697,10 +718,12 @@ END-OF-CSS
                (is #\/)
                (apply any-of
                  (map (lambda (p) (followed-by p end-of-input))
-                   (list route-do-marked
+                   (list route-do-locked
+                         route-do-marked
                          route-do-undelete
                          route-do-unmarked
                          route-xdo-edit
+                         route-xdo-locked
                          route-xdo-marked
                          route-xdo-undelete
                          route-xdo-unmarked
