@@ -475,6 +475,7 @@ END-OF-CSS
   `(form (@ (method "POST") (action "do-locked")
             (id ,(conc "post-" id)) (class "locked-post")
             (hx-swap "outerHTML")  (hx-post "xdo-locked"))
+    (input (@ (type "submit") (name "submit") (class lsub) (value "Push")))
     (div (@ (class "form-body"))
       ,(post-p-fragment id ptime section title url))
     (input (@ (type "hidden") (name "id") (value ,id)))
@@ -585,6 +586,35 @@ END-OF-CSS
     "Latest gruiks"
     "SELECT id,mark,ptime,section,title,url FROM gruik WHERE mark >= 0;"))
 
+(define (db-push-gruik str-id)
+  (let ((id (string->number str-id)))
+    (with-transaction db
+      (lambda ()
+        (exec
+          (sql db "INSERT INTO entry(url,type,description,notes,ctime,mtime)
+                   SELECT url,
+                          CASE WHEN description IS NULL THEN NULL
+                               WHEN substr(description,1,1)='<' THEN 'html'
+                               WHEN substr(description,1,3)=' - '
+                                 OR substr(description,1,3)=' + '
+                                               THEN 'markdown-li'
+                               ELSE 'text' END,
+                          trim(description,char(10))||char(10),
+                          trim(notes,char(10))||char(10),
+                          stime,?
+                   FROM gruik
+                   WHERE id=?;")
+          (current-seconds)
+          id)
+        (exec
+          (sql db "INSERT OR IGNORE INTO tagrel(url_id,tag_id)
+                   SELECT entry.id,tag_id
+                   FROM gruik_tags LEFT OUTER JOIN gruik ON gruik_id=gruik.id
+                                   LEFT OUTER JOIN entry ON gruik.url=entry.url
+                   WHERE gruik_id=?;")
+          id)
+        (db-set-mark id 2 -1)))))
+
 (define (db-set-mark id old-v new-v)
   (exec (sql db "UPDATE gruik SET mtime=?, mark=?, stime=? WHERE mark=? AND id=?;")
         (current-seconds)
@@ -601,6 +631,7 @@ END-OF-CSS
   (let ((id     (required-input-var "id"))
         (submit (required-input-var "submit")))
     (cond
+      ((string=? submit "Push")   (db-push-gruik id) (redirect "/"))
       ((string=? submit "Unlock") (db-set-mark id 2 1)
                                   (redirect (conc "/gruik/" id)))
       (else                       (bad-input "bad value for submit")))))
@@ -609,6 +640,7 @@ END-OF-CSS
   (let ((id     (required-input-var "id"))
         (submit (required-input-var "submit")))
     (cond
+      ((string=? submit "Push")   (db-push-gruik id) (htmx-output '()))
       ((string=? submit "Unlock") (db-set-mark id 2 1) (post-htmx id))
       (else                       (bad-input "bad value for submit")))))
 
