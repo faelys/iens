@@ -59,7 +59,7 @@ span.title { font-weight: bold; display: block; }
 @media (max-width: 59.9rem) {
   form {
     grid-template-columns: 1fr 1fr;
-    grid-template-areas: \"c c\" \"l r\";
+    grid-template-areas: "c c" "l r";
   }
 
   .form-body { grid-area: c; }
@@ -616,7 +616,8 @@ END-OF-CSS
         (db-set-mark id 2 -1)))))
 
 (define (db-set-mark id old-v new-v)
-  (exec (sql db "UPDATE gruik SET mtime=?, mark=?, stime=? WHERE mark=? AND id=?;")
+  (exec (sql db "UPDATE gruik SET mtime=?, mark=?, stime=?
+                 WHERE mark=? AND id=?;")
         (current-seconds)
         new-v
         (if (= 1 new-v) (current-seconds) '())
