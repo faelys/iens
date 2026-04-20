@@ -31,7 +31,8 @@ pre { overflow: scroll; }
 .form-body { overflow: scroll; }
 .bad-post { background: #fcc; }
 .marked-post { background: #ccf; }
-.locked-post { background: #cfc; }
+.locked-post { background: #cff; }
+.protected-post { background: #cfc; }
 form {
   margin: 1rex 0;
   display: grid;
@@ -89,7 +90,8 @@ a:hover { background: #007FBF; color: #F0E8E0; }
   a:hover { background: #4695f7; color: #103c48; }
   .bad-post { background: #783946; }
   .marked-post { background: #1849a6; }
-  .locked-post { background: #189956; }
+  .locked-post { background: #189999; }
+  .protected-post { background: #189956; }
   #load-new svg { fill: #cad8d9; }
 }
 END-OF-CSS
@@ -399,7 +401,10 @@ END-OF-CSS
     (div (@ (class "form-body"))
       ,(post-p-fragment id ptime section title url)
       (p ,(conc "Mark: " mark)
-        (label (input (@ (type checkbox) (name lock) (value yes))) "Lock"))
+        (label (input (@ (type radio) (name mark) (value 0))) "Unmark")
+        (label (input (@ (type radio) (name mark) (value 1) (checked))) "Keep")
+        (label (input (@ (type radio) (name mark) (value 2))) "Lock")
+        (label (input (@ (type radio) (name mark) (value 3))) "Protect"))
       (pre (code ,notes))
       (p (label "Append to notes:"
         (textarea (@ (name "notes") (cols 80) (rows 5)) "")))
@@ -434,7 +439,7 @@ END-OF-CSS
         (current-seconds)
         (required-input-var "notes")
         (required-input-var "description")
-        (if (input-var "lock") 2 1)
+        (string->number (required-input-var "mark"))
         id)
       (let* ((n-tags (query fetch-value (sql db "SELECT MAX(id) FROM tag")))
              (tags   (make-vector (+ 1 n-tags) 0)))
@@ -471,9 +476,10 @@ END-OF-CSS
       ,(post-p-fragment id ptime section title url))
     (input (@ (type "hidden") (name "id") (value ,id)))))
 
-(define (locked-post-fragment id ptime section title url)
+(define (locked-post-fragment id ptime section title url mark)
   `(form (@ (method "POST") (action "do-locked")
-            (id ,(conc "post-" id)) (class "locked-post")
+            (id ,(conc "post-" id))
+            (class ,(if (> mark 2) "protected-post" "locked-post"))
             (hx-swap "outerHTML")  (hx-post "xdo-locked"))
     (input (@ (type "submit") (name "submit") (class lsub) (value "Push")))
     (div (@ (class "form-body"))
@@ -503,10 +509,10 @@ END-OF-CSS
 
 (define (post-fragment id mark ptime section title url)
   (case mark
-    ((0)  (unmarked-post-fragment id ptime section title url))
-    ((1)  (marked-post-fragment   id ptime section title url))
-    ((2)  (locked-post-fragment   id ptime section title url))
-    (else (bad-post-fragment      id ptime section title url))))
+    ((0)    (unmarked-post-fragment id ptime section title url))
+    ((1)    (marked-post-fragment   id ptime section title url))
+    ((2 3)  (locked-post-fragment   id ptime section title url mark))
+    (else   (bad-post-fragment      id ptime section title url))))
 
 (define (post-htmx id)
   (htmx-output
