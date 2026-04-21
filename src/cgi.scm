@@ -597,7 +597,7 @@ END-OF-CSS
     (with-transaction db
       (lambda ()
         (exec
-          (sql db "INSERT INTO entry(url,type,description,notes,ctime,mtime)
+          (sql db "INSERT INTO entry(url,type,description,notes,ctime,mtime,ptime,protected)
                    SELECT url,
                           CASE WHEN description IS NULL THEN NULL
                                WHEN substr(description,1,1)='<' THEN 'html'
@@ -607,9 +607,12 @@ END-OF-CSS
                                ELSE 'text' END,
                           trim(description,char(10))||char(10),
                           trim(notes,char(10))||char(10),
-                          stime,?
+                          stime,?,
+                          CASE WHEN mark>=3 THEN ? ELSE NULL END,
+                          CASE WHEN mark>=3 THEN 1 ELSE 0 END
                    FROM gruik
                    WHERE id=?;")
+          (current-seconds)
           (current-seconds)
           id)
         (exec
@@ -619,7 +622,8 @@ END-OF-CSS
                                    LEFT OUTER JOIN entry ON gruik.url=entry.url
                    WHERE gruik_id=?;")
           id)
-        (db-set-mark id 2 -1)))))
+        (db-set-mark id 2 -1)
+        (db-set-mark id 3 -1)))))
 
 (define (db-set-mark id old-v new-v)
   (exec (sql db "UPDATE gruik SET mtime=?, mark=?, stime=?
