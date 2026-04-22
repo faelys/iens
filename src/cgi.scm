@@ -291,17 +291,24 @@ END-OF-CSS
   (let ((parsed (parse irc-line line))
         (now    (current-seconds)))
     (when parsed
-      (exec
-        (sql db
-          "INSERT INTO gruik(position, notes, ptime, section, title, url, ctime, mtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?);")
-        offset
-        (line->notes line 79)
-        (car parsed)
-        (list-ref parsed 2)
-        (list-ref parsed 3)
-        (list-ref parsed 4)
-        now
-        now))))
+      (let ((url (list-ref parsed 4)))
+        (exec
+          (sql db
+            "INSERT INTO gruik(position, notes, ptime, section, title, url, mark, ctime, mtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);")
+          offset
+          (line->notes line 79)
+          (car parsed)
+          (list-ref parsed 2)
+          (list-ref parsed 3)
+          url
+          (+ (query fetch-value
+                    (sql db "SELECT -COUNT(*) FROM gruik WHERE url=?;")
+                    url)
+             (query fetch-value
+                    (sql db "SELECT -COUNT(*) FROM entry WHERE url=?;")
+                    url))
+          now
+          now)))))
 
 (define (catch-up)
   (let* ((span (get-config "gruik-clean")))
