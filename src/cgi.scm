@@ -258,6 +258,7 @@ END-OF-CSS
 
 (unless (= 4 (db-version))
   (die "Unexpectad database version"))
+(exec (sql/transient db "UPDATE gruik SET mark=-10 WHERE mark=-1;"))
 
 
 (define (get-config key)
@@ -302,10 +303,10 @@ END-OF-CSS
           (list-ref parsed 3)
           url
           (+ (query fetch-value
-                    (sql db "SELECT -COUNT(*) FROM gruik WHERE url=?;")
+                    (sql db "SELECT -2*COUNT(*) FROM gruik WHERE url=?;")
                     url)
              (query fetch-value
-                    (sql db "SELECT -COUNT(*) FROM entry WHERE url=?;")
+                    (sql db "SELECT -2*COUNT(*) FROM entry WHERE url=?;")
                     url))
           now
           now)))))
@@ -629,8 +630,8 @@ END-OF-CSS
                                    LEFT OUTER JOIN entry ON gruik.url=entry.url
                    WHERE gruik_id=?;")
           id)
-        (db-set-mark id 2 -1)
-        (db-set-mark id 3 -1)))))
+        (db-set-mark id 2 -10)
+        (db-set-mark id 3 -10)))))
 
 (define (db-set-mark id old-v new-v)
   (exec (sql db "UPDATE gruik SET mtime=?, mark=?, stime=?
@@ -683,14 +684,14 @@ END-OF-CSS
   (let ((id     (required-input-var "id"))
         (submit (required-input-var "submit")))
     (cond
-      ((string=? submit "Restore") (db-set-mark id -1 0) (redirect "/"))
+      ((string=? submit "Restore") (db-set-mark id -10 0) (redirect "/"))
       (else                        (bad-input "bad value for submit")))))
 
 (define (xdo-undelete)
   (let ((id     (required-input-var "id"))
         (submit (required-input-var "submit")))
     (cond
-      ((string=? submit "Restore") (db-set-mark id -1 0) (htmx-output '()))
+      ((string=? submit "Restore") (db-set-mark id -10 0) (htmx-output '()))
       (else                        (bad-input "bad value for submit")))))
 
 (define (do-unmarked)
@@ -700,7 +701,7 @@ END-OF-CSS
       ((string=? submit "Mark")   (db-set-mark id 0  1)
                                   (auto-descr id)
                                   (redirect "/"))
-      ((string=? submit "Delete") (db-set-mark id 0 -1) (redirect "/"))
+      ((string=? submit "Delete") (db-set-mark id 0 -10) (redirect "/"))
       (else                       (bad-input "bad value for submit")))))
 
 (define (xdo-unmarked)
@@ -710,7 +711,7 @@ END-OF-CSS
       ((string=? submit "Mark")   (db-set-mark id 0  1)
                                   (auto-descr id)
                                   (post-htmx id))
-      ((string=? submit "Delete") (db-set-mark id 0 -1) (htmx-output '()))
+      ((string=? submit "Delete") (db-set-mark id 0 -10) (htmx-output '()))
       (else                       (bad-input "bad value for submit")))))
 
 
