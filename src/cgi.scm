@@ -557,7 +557,7 @@ END-OF-CSS
   (let* ((last-id (string->number (required-input-var "last-id")))
          (frags (query
                   (map-rows* post-fragment)
-                  (sql db "SELECT id,mark,ptime,section,title,url FROM gruik WHERE id > ? AND mark >= 0;")
+                  (sql db "SELECT id,mark,ptime,section,title,url FROM gruik WHERE id > ? AND mark >= -5;")
                   last-id))
          (btn (if (null? frags) "Recheck" "More")))
   (htmx-output
@@ -598,7 +598,7 @@ END-OF-CSS
   (catch-up)
   (gruik-list-view
     "Latest gruiks"
-    "SELECT id,mark,ptime,section,title,url FROM gruik WHERE mark >= 0;"))
+    "SELECT id,mark,ptime,section,title,url FROM gruik WHERE mark >= -5;"))
 
 (define (db-push-gruik str-id)
   (let ((id (string->number str-id)))
