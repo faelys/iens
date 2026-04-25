@@ -256,9 +256,8 @@ END-OF-CSS
 
 (include "common.scm")
 
-(unless (= 4 (db-version))
+(unless (= 5 (db-version))
   (die "Unexpectad database version"))
-(exec (sql/transient db "UPDATE gruik SET mark=-10 WHERE mark=-1;"))
 
 
 (define (get-config key)
@@ -366,9 +365,12 @@ END-OF-CSS
         (if comm
           (exec
             (sql db "UPDATE gruik
-                     SET description=?,notes=trim(notes||char(10)||?,char(10))
+                     SET description=?,
+                         notes=trim(notes||char(10)||?,char(10)),
+                         comment_url=?
                      WHERE id=? AND COALESCE(description,'')='';")
             (conc " + [](" url ")\n(via [" section "](" comm ") sur #gcufeed)")
+            comm
             comm
             id)
           (exec

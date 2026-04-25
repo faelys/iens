@@ -57,6 +57,7 @@
              section TEXT NOT NULL,
              title TEXT NOT NULL,
              url TEXT NOT NULL,
+             comment_url TEXT,
              mark INTEGER NOT NULL DEFAULT 0,
              ctime INTEGER NOT NULL,
              mtime INTEGER NOT NULL,
@@ -64,6 +65,7 @@
              entry_id INTEGER REFERENCES entry(id));"
           "CREATE UNIQUE INDEX i_gruik ON gruik(position);"
           "CREATE INDEX i_gruik_time ON gruik(ptime);"
+          "CREATE INDEX i_gruik_url ON gruik(url);"
           "CREATE TABLE gruik_tags
             (gruik_id REFERENCES gruik(id) ON UPDATE CASCADE ON DELETE CASCADE,
              tag_id REFERENCES tag(id) ON UPDATE CASCADE ON DELETE CASCADE);"
@@ -133,3 +135,17 @@
             ('Lobsters','https://lobste.rs/rss');"
           "ALTER TABLE gruik ADD COLUMN entry_id INTEGER REFERENCES entry(id);"
           "PRAGMA user_version = 4;")))
+
+(when (= 4 (db-version))
+  (for-each
+    (lambda (s) (exec (sql/transient db s)))
+    (list "CREATE INDEX i_gruik_url ON gruik(url);"
+          "ALTER TABLE gruik ADD COLUMN comment_url TEXT;"
+          "UPDATE gruik
+             SET comment_url=substr(notes,instr(notes,'https://news.ycombinator.com'))
+             WHERE notes LIKE '%https://news.ycombinator.com%';"
+          "UPDATE gruik
+             SET comment_url=substr(notes,instr(notes,'https://lobste.rs'))
+             WHERE notes LIKE '%https://lobste.rs%';"
+          "UPDATE gruik SET mark=-10 WHERE mark=-1;"
+          "PRAGMA user_version = 5;")))

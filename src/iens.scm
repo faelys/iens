@@ -115,7 +115,7 @@
 
 (include "common.scm")
 
-(assert (= 4 (db-version)))
+(assert (= 5 (db-version)))
 
 ;;;;;;;;;;;;;;;;;;
 ;; Configuration
