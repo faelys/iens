@@ -419,6 +419,10 @@ END-OF-CSS
         (label (input (@ (type radio) (name mark) (value 2))) "Lock")
         (label (input (@ (type radio) (name mark) (value 3))) "Protect"))
       (pre (code ,notes))
+      ,@(if (null? comm-url)
+            `((p (label (input (@ (type checkbox) (name retry-comm) (value y)))
+                               "Retry fetching comment URL")))
+            '())
       (p (label "Append to notes:"
         (textarea (@ (name "notes") (cols 80) (rows 5)) "")))
       (p (label "Description:"
@@ -444,16 +448,18 @@ END-OF-CSS
     id))
 
 (define (db-edit)
-  (let ((id (string->number (required-input-var "id"))))
+  (let ((id         (string->number (required-input-var "id")))
+        (retry-comm (input-var "retry-comm")))
     (when (string=? "Edit" (required-input-var "submit"))
       (exec
         (sql/transient db
           "UPDATE gruik SET mtime=?,notes=trim(notes||char(10)||?,char(10)),description=?,mark=? WHERE mark=1 AND id=?;")
         (current-seconds)
         (required-input-var "notes")
-        (required-input-var "description")
+        (if retry-comm "" (required-input-var "description"))
         (string->number (required-input-var "mark"))
         id)
+      (when retry-comm (auto-descr id))
       (let* ((n-tags (query fetch-value (sql db "SELECT MAX(id) FROM tag")))
              (tags   (make-vector (+ 1 n-tags) 0)))
         (let loop ((var input-list))
