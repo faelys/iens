@@ -143,6 +143,9 @@ END-OF-CSS
     (cond ((null? rest) #f)
           ((string=? (caar rest) name) (cadar rest))
           (else (loop (cdr rest))))))
+(define (optional-input-var name fallback)
+  (let ((val (input-var name)))
+    (if val val fallback)))
 (define (required-input-var name)
   (let ((val (input-var name)))
     (if val val (bad-input (conc "missing " name)))))
@@ -692,16 +695,24 @@ END-OF-CSS
       (else                       (bad-input "bad value for submit")))))
 
 (define (do-undelete)
-  (let ((id     (required-input-var "id"))
-        (submit (required-input-var "submit")))
+  (let ((id      (required-input-var "id"))
+        (oldmark (string->number (optional-input-var "from" "")))
+        (submit  (required-input-var "submit")))
     (cond
+      ((and oldmark (<= -5 oldmark -1) (string=? submit "Restore"))
+        (db-set-mark id oldmark 0)
+        (redirect (conc "/gruik/" id)))
       ((string=? submit "Restore") (db-set-mark id -10 0) (redirect "/"))
       (else                        (bad-input "bad value for submit")))))
 
 (define (xdo-undelete)
-  (let ((id     (required-input-var "id"))
-        (submit (required-input-var "submit")))
+  (let ((id      (required-input-var "id"))
+        (oldmark (string->number (optional-input-var "from" "")))
+        (submit  (required-input-var "submit")))
     (cond
+      ((and oldmark (<= -5 oldmark -1) (string=? submit "Restore"))
+        (db-set-mark id oldmark 0)
+        (post-htmx id))
       ((string=? submit "Restore") (db-set-mark id -10 0) (htmx-output '()))
       (else                        (bad-input "bad value for submit")))))
 
