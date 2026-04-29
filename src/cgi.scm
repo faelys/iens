@@ -489,14 +489,18 @@ END-OF-CSS
             (loop (- tid 1))))))
     id))
 
-(define (bad-post-fragment id ptime section title url comm-url)
+(define (bad-post-fragment id ptime section title url comm-url mark)
   `(form (@ (method "POST") (action "do-undelete")
             (id ,(conc "post-" id)) (class "bad-post")
             (hx-swap "outerHTML")  (hx-post "xdo-undelete"))
     (input (@ (type "submit") (name "submit") (class lsub) (value "Restore")))
     (div (@ (class "form-body"))
       ,(post-p-fragment id ptime section title url comm-url))
-    (input (@ (type "hidden") (name "id") (value ,id)))))
+    (input (@ (type "hidden") (name "id") (value ,id)))
+    ,@(if (<= -5 mark -1)
+      `((input (@ (type "hidden") (name "from") (value ,mark)))
+        (input (@ (type "submit") (name "submit") (class rsub) (value "Hide"))))
+      '())))
 
 (define (locked-post-fragment id ptime section title url comm-url mark)
   `(form (@ (method "POST") (action "do-locked")
@@ -534,7 +538,7 @@ END-OF-CSS
     ((0)    (unmarked-post-fragment id ptime section title url comm-url))
     ((1)    (marked-post-fragment   id ptime section title url comm-url))
     ((2 3)  (locked-post-fragment   id ptime section title url comm-url mark))
-    (else   (bad-post-fragment      id ptime section title url comm-url))))
+    (else   (bad-post-fragment      id ptime section title url comm-url mark))))
 
 (define (post-htmx id)
   (htmx-output
@@ -699,9 +703,15 @@ END-OF-CSS
         (oldmark (string->number (optional-input-var "from" "")))
         (submit  (required-input-var "submit")))
     (cond
-      ((and oldmark (<= -5 oldmark -1) (string=? submit "Restore"))
-        (db-set-mark id oldmark 0)
-        (redirect (conc "/gruik/" id)))
+      ((and oldmark (<= -5 oldmark -1))
+        (cond
+          ((string=? submit "Restore")
+            (db-set-mark id oldmark 0)
+            (redirect (conc "/gruik/" id)))
+          ((string=? submit "Hide")
+            (db-set-mark id oldmark -10)
+            (redirect "/"))
+          (else (bad-input "bad value for submit"))))
       ((string=? submit "Restore") (db-set-mark id -10 0) (redirect "/"))
       (else                        (bad-input "bad value for submit")))))
 
@@ -710,9 +720,15 @@ END-OF-CSS
         (oldmark (string->number (optional-input-var "from" "")))
         (submit  (required-input-var "submit")))
     (cond
-      ((and oldmark (<= -5 oldmark -1) (string=? submit "Restore"))
-        (db-set-mark id oldmark 0)
-        (post-htmx id))
+      ((and oldmark (<= -5 oldmark -1))
+        (cond
+          ((string=? submit "Restore")
+            (db-set-mark id oldmark 0)
+            (post-htmx id))
+          ((string=? submit "Hide")
+            (db-set-mark id oldmark -10)
+            (htmx-output '()))
+          (else (bad-input "bad value for submit"))))
       ((string=? submit "Restore") (db-set-mark id -10 0) (htmx-output '()))
       (else                        (bad-input "bad value for submit")))))
 
