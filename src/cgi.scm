@@ -652,7 +652,7 @@ END-OF-CSS
         (db-set-mark id 3 -10)))))
 
 (define (db-set-mark id old-v new-v)
-  (exec (sql db "UPDATE gruik SET mtime=?, mark=?, stime=?
+  (exec (sql db "UPDATE gruik SET mtime=?, mark=?, stime=COALESCE(stime,?)
                  WHERE mark=? AND id=?;")
         (current-seconds)
         new-v
