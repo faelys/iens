@@ -1233,7 +1233,7 @@
                WHERE gruik.mark=?;")
       mark)
     (exec
-      (sql db "DELETE FROM gruik WHERE mark=?;")
+      (sql db "UPDATE gruik SET mark=-10 WHERE mark=?;")
       mark)
     (print-selection (conc "WHERE entry.id > " last-id)))
     (update-feed-cache mtime))
