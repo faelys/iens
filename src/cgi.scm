@@ -27,8 +27,8 @@
 
 (define css-style #<<END-OF-CSS
 h1 { text-align: center; }
-pre { overflow: scroll; }
-.form-body { overflow: scroll; }
+pre { overflow: auto; }
+.form-body { overflow: auto; }
 .bad-post { background: #fcc; }
 .marked-post { background: #ccf; }
 .locked-post { background: #cff; }
