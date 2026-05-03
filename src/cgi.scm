@@ -595,7 +595,8 @@ END-OF-CSS
   (catch-up)
   (gruik-list-view
     "Deleted gruiks"
-    "SELECT id,mark,ptime,section,title,url,comment_url FROM gruik WHERE mark < 0 ORDER BY mtime;"))
+    "SELECT id,mark,ptime,section,title,url,comment_url
+     FROM gruik WHERE mark < 0 ORDER BY mtime DESC;"))
 
 (define (edit-view id)
   (let ((title (conc "Gruik #" id)))
