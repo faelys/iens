@@ -661,6 +661,69 @@ END-OF-CSS
         old-v
         id))
 
+(define (db-sel-count id text)
+  (list id text
+    (query fetch-value
+           (sql db (string-append "SELECT COUNT(id) FROM entry " text ";")))))
+(define (db-sel-counts)
+  (query (map-rows* db-sel-count)
+         (sql db "SELECT id,text FROM selector ORDER BY id DESC;")))
+(define (diff-sel-counts before after)
+  (let loop ((rest-before before) (rest-after after) (acc '()))
+    (cond
+      ((and (null? rest-before) (null? rest-after)) acc)
+      ((null? rest-before)
+        (loop rest-before
+              (cdr rest-after)
+              (cons (list 0 (conc "extra after: " (cadar rest-after)) 0)
+                    acc)))
+      ((null? rest-after)
+        (loop (cdr rest-before)
+              rest-after
+              (cons (list 0 (conc "extra before: " (cadar rest-before)) 0)
+                    acc)))
+      ((not (= (caar rest-before) (caar rest-after)))
+        (loop (cdr rest-before)
+              (cdr rest-after)
+              (cons (list 0
+                          (conc "id mismatch: "
+                                (caar rest-before) " / " (caar rest-after))
+                          0)
+                    acc)))
+      ((not (string=? (cadar rest-before) (cadar rest-after)))
+        (loop (cdr rest-before)
+              (cdr rest-after)
+              (cons (list 0
+                          (conc "text mismatch: "
+                                (cadar rest-before) " / " (cadar rest-after))
+                          0)
+                    acc)))
+      (else
+        (loop (cdr rest-before)
+              (cdr rest-after)
+              (if (= (caddar rest-before) (caddar rest-after))
+                  acc
+                  (cons (list (caar rest-before)
+                              (cadar rest-after)
+                              (caddar rest-before)
+                              (caddar rest-after)
+                              (- (caddar rest-after) (caddar rest-before)))
+                        acc)))))))
+(define (fragment-diff-sel-counts before after)
+  (let ((diff (diff-sel-counts before after)))
+    (if (null? diff) '()
+      `(form
+        (table (@ (class "form-body"))
+          ,@(map (lambda (line)
+                   (cons 'tr (map (lambda (v) (list 'td (->string v))) line)))
+                 diff))))))
+
+(define (htmx-push-gruik id)
+  (let ((before (db-sel-counts)))
+    (db-push-gruik id)
+    (htmx-output
+      (fragment-diff-sel-counts before (db-sel-counts)))))
+
 (define (xdo-edit)
   (let ((id (db-edit)))
     (post-htmx id)))
@@ -678,7 +741,7 @@ END-OF-CSS
   (let ((id     (required-input-var "id"))
         (submit (required-input-var "submit")))
     (cond
-      ((string=? submit "Push")   (db-push-gruik id) (htmx-output '()))
+      ((string=? submit "Push")   (htmx-push-gruik id))
       ((string=? submit "Unlock") (db-set-mark id 2 1) (post-htmx id))
       (else                       (bad-input "bad value for submit")))))
 
