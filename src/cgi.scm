@@ -716,7 +716,9 @@ END-OF-CSS
         (table (@ (class "form-body"))
           ,@(map (lambda (line)
                    (cons 'tr (map (lambda (v) (list 'td (->string v))) line)))
-                 diff))))))
+                 diff))
+        (button (@ (class rsub) (onclick "this.closest('form').remove()"))
+          "Dismiss")))))
 
 (define (htmx-push-gruik id)
   (let ((before (db-sel-counts)))
