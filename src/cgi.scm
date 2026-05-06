@@ -426,6 +426,8 @@ END-OF-CSS
             `((p (label (input (@ (type checkbox) (name retry-comm) (value y)))
                                "Retry fetching comment URL")))
             '())
+      (p (label "Comment URL:"
+        (input (@ (type "url") (name "commenturl") (value ,comm-url)))))
       (p (label "Append to notes:"
         (textarea (@ (name "notes") (cols 80) (rows 5)) "")))
       (p (label "Description:"
@@ -452,15 +454,19 @@ END-OF-CSS
 
 (define (db-edit)
   (let ((id         (string->number (required-input-var "id")))
+        (comm-url   (input-var "commenturl"))
         (retry-comm (input-var "retry-comm")))
     (when (string=? "Edit" (required-input-var "submit"))
       (exec
         (sql/transient db
-          "UPDATE gruik SET mtime=?,notes=trim(notes||char(10)||?,char(10)),description=?,mark=? WHERE mark=1 AND id=?;")
+          "UPDATE gruik SET mtime=?,notes=trim(notes||char(10)||?,char(10)),
+                            description=?,mark=?,comment_url=?
+           WHERE mark=1 AND id=?;")
         (current-seconds)
         (required-input-var "notes")
         (if retry-comm "" (required-input-var "description"))
         (string->number (required-input-var "mark"))
+        (if (and comm-url (not (string=? comm-url ""))) comm-url '())
         id)
       (when retry-comm (auto-descr id))
       (let* ((n-tags (query fetch-value (sql db "SELECT MAX(id) FROM tag")))
