@@ -48,6 +48,7 @@ span.ptime { font-size: 80%; }
 span.section { font-size: 80%; }
 a.section { font-size: 80%; }
 span.title { font-weight: bold; display: block; }
+span.taglist { font-weight: bold; font-size: 80%; }
 @media (min-width: 60rem) {
   form {
     grid-template-columns: 5rem 1fr 5rem;
@@ -400,22 +401,24 @@ END-OF-CSS
     ,(spinner-bar  90 10 120 "0.25s")
     ,(spinner-bar 120 10 120 "0.5s")))
 
-(define (post-p-fragment id ptime section title url comm-url)
+(define (post-p-fragment id ptime section title url comm-url tags)
   `(p
     (span (@ (class "ptime") (title ,id)) ,ptime)
     ,(if (null? comm-url)
          `(span (@ (class "section")) ,section)
          `(a (@ (href ,comm-url) (class "section")) ,section))
+    ,@(if (or (null? tags) (string=? tags "")) '()
+         `((span (@ (class "taglist")) ,tags)))
     (span (@ (class "title")) ,title)
     (a (@ (href ,url)) ,url)))
 
-(define (edit-post-fragment id ptime section title url comm-url mark notes description)
+(define (edit-post-fragment id ptime section title url comm-url mark notes description tags)
   `(form (@ (method "POST") (action "do-edit")
             (id ,(conc "post-" id)) (class "edit-post")
             (hx-swap "outerHTML")  (hx-post "xdo-edit"))
     (input (@ (type "submit") (name "submit") (class lsub) (value "Edit")))
     (div (@ (class "form-body"))
-      ,(post-p-fragment id ptime section title url comm-url)
+      ,(post-p-fragment id ptime section title url comm-url tags)
       (p ,(conc "Mark: " mark)
         (label (input (@ (type radio) (name mark) (value 0))) "Unmark")
         (label (input (@ (type radio) (name mark) (value 1) (checked))) "Keep")
@@ -449,7 +452,11 @@ END-OF-CSS
 (define (edit-post-fragment* id)
   (query
     (map-rows* edit-post-fragment)
-    (sql db "SELECT id,ptime,section,title,url,comment_url,mark,notes,description FROM gruik WHERE mark=1 AND id=?;")
+    (sql db "SELECT gruik.id,ptime,section,title,url,comment_url,mark,
+                    notes,description,group_concat('#'||name,' ')
+             FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
+                        LEFT OUTER JOIN tag ON tag_id=tag.id
+             WHERE mark=1 AND gruik.id=? GROUP BY gruik.id;")
     id))
 
 (define (db-edit)
@@ -495,62 +502,66 @@ END-OF-CSS
             (loop (- tid 1))))))
     id))
 
-(define (bad-post-fragment id ptime section title url comm-url mark)
+(define (bad-post-fragment id ptime section title url comm-url tags mark)
   `(form (@ (method "POST") (action "do-undelete")
             (id ,(conc "post-" id)) (class "bad-post")
             (hx-swap "outerHTML")  (hx-post "xdo-undelete"))
     (input (@ (type "submit") (name "submit") (class lsub) (value "Restore")))
     (div (@ (class "form-body"))
-      ,(post-p-fragment id ptime section title url comm-url))
+      ,(post-p-fragment id ptime section title url comm-url tags))
     (input (@ (type "hidden") (name "id") (value ,id)))
     ,@(if (<= -5 mark -1)
       `((input (@ (type "hidden") (name "from") (value ,mark)))
         (input (@ (type "submit") (name "submit") (class rsub) (value "Hide"))))
       '())))
 
-(define (locked-post-fragment id ptime section title url comm-url mark)
+(define (locked-post-fragment id ptime section title url comm-url tags mark)
   `(form (@ (method "POST") (action "do-locked")
             (id ,(conc "post-" id))
             (class ,(if (> mark 2) "protected-post" "locked-post"))
             (hx-swap "outerHTML")  (hx-post "xdo-locked"))
     (input (@ (type "submit") (name "submit") (class lsub) (value "Push")))
     (div (@ (class "form-body"))
-      ,(post-p-fragment id ptime section title url comm-url))
+      ,(post-p-fragment id ptime section title url comm-url tags))
     (input (@ (type "hidden") (name "id") (value ,id)))
     (input (@ (type "submit") (name "submit") (class rsub) (value "Unlock")))))
 
-(define (marked-post-fragment id ptime section title url comm-url)
+(define (marked-post-fragment id ptime section title url comm-url tags)
   `(form (@ (method "POST") (action "do-marked")
             (id ,(conc "post-" id)) (class "marked-post")
             (hx-swap "outerHTML")  (hx-post "xdo-marked"))
     (input (@ (type "submit") (name "submit") (class lsub) (value "Edit")))
     (div (@ (class "form-body"))
-      ,(post-p-fragment id ptime section title url comm-url))
+      ,(post-p-fragment id ptime section title url comm-url tags))
     (input (@ (type "hidden") (name "id") (value ,id)))
     (input (@ (type "submit") (name "submit") (class rsub) (value "Unmark")))))
 
-(define (unmarked-post-fragment id ptime section title url comm-url)
+(define (unmarked-post-fragment id ptime section title url comm-url tags)
   `(form (@ (method "POST") (action "do-unmarked")
             (id ,(conc "post-" id)) (class "unmarked-post")
             (hx-swap "outerHTML")  (hx-post "xdo-unmarked"))
     (input (@ (type "submit") (name "submit") (class lsub) (value "Mark")))
     (div (@ (class "form-body"))
-      ,(post-p-fragment id ptime section title url comm-url))
+      ,(post-p-fragment id ptime section title url comm-url tags))
     (input (@ (type "hidden") (name "id") (value ,id)))
     (input (@ (type "submit") (name "submit") (class rsub) (value "Delete")))))
 
-(define (post-fragment id mark ptime section title url comm-url)
+(define (post-fragment id mark ptime section title url comm-url tags)
   (case mark
-    ((0)    (unmarked-post-fragment id ptime section title url comm-url))
-    ((1)    (marked-post-fragment   id ptime section title url comm-url))
-    ((2 3)  (locked-post-fragment   id ptime section title url comm-url mark))
-    (else   (bad-post-fragment      id ptime section title url comm-url mark))))
+    ((0)    (unmarked-post-fragment id ptime section title url comm-url tags))
+    ((1)    (marked-post-fragment   id ptime section title url comm-url tags))
+    ((2 3)  (locked-post-fragment   id ptime section title url comm-url tags mark))
+    (else   (bad-post-fragment      id ptime section title url comm-url tags mark))))
 
 (define (post-htmx id)
   (htmx-output
     (query
       (map-rows* post-fragment)
-      (sql db "SELECT id,mark,ptime,section,title,url,comment_url FROM gruik WHERE id=?;")
+      (sql db "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
+                      group_concat('#'||name,' ')
+               FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
+                          LEFT OUTER JOIN tag ON tag_id=tag.id
+               WHERE gruik.id=? GROUP BY gruik.id;")
       id)))
 
 (define (gruik-list-view title q)
@@ -581,7 +592,13 @@ END-OF-CSS
   (let* ((last-id (string->number (required-input-var "last-id")))
          (frags (query
                   (map-rows* post-fragment)
-                  (sql db "SELECT id,mark,ptime,section,title,url,comment_url FROM gruik WHERE id > ? AND mark >= -5;")
+                  (sql db "SELECT gruik.id,mark,ptime,section,title,url,
+                                  comment_url,group_concat('#'||name,' ')
+                           FROM gruik LEFT OUTER JOIN gruik_tags
+                                                      ON gruik_id=gruik.id
+                                      LEFT OUTER JOIN tag ON tag_id=tag.id
+                           WHERE gruik.id > ? AND mark >= -5
+                           GROUP BY gruik.id;")
                   last-id))
          (btn (if (null? frags) "Recheck" "More")))
   (htmx-output
@@ -601,8 +618,11 @@ END-OF-CSS
   (catch-up)
   (gruik-list-view
     "Deleted gruiks"
-    "SELECT id,mark,ptime,section,title,url,comment_url
-     FROM gruik WHERE mark < 0 ORDER BY mtime DESC;"))
+    "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
+            group_concat('#'||name,' ')
+     FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
+                LEFT OUTER JOIN tag ON tag_id=tag.id
+     WHERE mark < 0 GROUP BY gruik.id ORDER BY mtime DESC;"))
 
 (define (edit-view id)
   (let ((title (conc "Gruik #" id)))
@@ -623,7 +643,11 @@ END-OF-CSS
   (catch-up)
   (gruik-list-view
     "Latest gruiks"
-    "SELECT id,mark,ptime,section,title,url,comment_url FROM gruik WHERE mark >= -5;"))
+    "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
+            group_concat('#'||name,' ')
+     FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
+                LEFT OUTER JOIN tag ON tag_id=tag.id
+     WHERE mark >= -5 GROUP BY gruik.id;"))
 
 (define (db-push-gruik str-id)
   (let ((id (string->number str-id)))
