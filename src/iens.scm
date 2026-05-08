@@ -139,15 +139,6 @@
       (editor editor)
       (else fallback))))
 
-(define (get-config key)
-  (query fetch-value (sql db "SELECT val FROM config WHERE key = ?;") key))
-
-(define (get-config/default key default-value)
-  (let ((result (get-config key)))
-    (if result
-        result
-        default-value)))
-
 (define (string->filename data)
   (cond ((not data) #f)
         ((starts-with? "~/" data)

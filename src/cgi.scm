@@ -265,15 +265,6 @@ END-OF-CSS
   (die "Unexpectad database version"))
 
 
-(define (get-config key)
-  (query fetch-value (sql db "SELECT val FROM config WHERE key = ?;") key))
-
-(define (get-config/default key default-value)
-  (let ((result (get-config key)))
-    (if result
-        result
-        default-value)))
-
 (define (line->notes line max-width)
   (let loop ((rest (string-split line " " #t))
              (lines  '())

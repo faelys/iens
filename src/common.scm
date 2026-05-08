@@ -149,3 +149,15 @@
              WHERE notes LIKE '%https://lobste.rs%';"
           "UPDATE gruik SET mark=-10 WHERE mark=-1;"
           "PRAGMA user_version = 5;")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Database Utilitities
+
+(define (get-config key)
+  (query fetch-value (sql db "SELECT val FROM config WHERE key = ?;") key))
+
+(define (get-config/default key default-value)
+  (let ((result (get-config key)))
+    (if result
+        result
+        default-value)))
