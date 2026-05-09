@@ -952,20 +952,6 @@
 ;;;;;;;;;;;;;;;;;;;;
 ;; Editor Spawning
 
-(define (comment-link section url)
-  (let* ((rss-url  (query fetch-value
-                          (sql db "SELECT url FROM source_rss WHERE name=?;")
-                          section)))
-    (if rss-url
-      (let ((rss (with-input-from-request rss-url #f rss:read)))
-        (let loop ((items (rss:feed-items rss)))
-          (cond
-            ((null? items) #f)
-            ((string=? url (rss:item-link (car items)))
-              (alist-ref 'comments (rss:item-attributes (car items))))
-            (else (loop (cdr items))))))
-      #f)))
-
 (define (edit-descr* entry-id)
   (let ((file-name (create-temporary-file
                      (string-append "."
