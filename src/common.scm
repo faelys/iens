@@ -178,3 +178,64 @@
     (if result
         result
         default-value)))
+
+;;;;;;;;;;;;;;;;;;;;
+;; Feed Generation
+
+(define (atom-content type descr notes)
+  (cond ((null? descr) `(atom:content ,notes))
+        ((null? type)  `(atom:content ,descr))
+        ((equal? type "markdown-li")
+          (let ((acc (open-output-string))
+                (prev-output (current-output-port)))
+            (current-output-port acc)
+            (let ((result (markdown->html (substring descr 3))))
+              (current-output-port prev-output)
+              (if result
+                  `(atom:content (@ (type "html")) ,(get-output-string acc))
+                  `(atom:content ,descr)))))
+        (else `(atom:content (@ (type ,type)) ,descr))))
+
+(define (feed->sxml entry-id-prefix id url type descr notes ptime ctime mtime)
+  `(atom:entry
+     (atom:id ,(string-append entry-id-prefix (number->string id)))
+     (atom:title ,url)
+     (atom:updated ,(rfc-3339 mtime))
+     (atom:published ,(rfc-3339 (if (null? ptime) ctime ptime)))
+     (atom:link (@ (rel "related") (href ,url)))
+     ,(atom-content type descr notes)
+     ,@(query (map-rows (lambda (x) `(atom:category (@ (term ,(car x))))))
+              (sql db "SELECT tag.name FROM tagrel
+                       OUTER LEFT JOIN tag ON tagrel.tag_id=tag.id
+                       WHERE url_id=? ORDER BY tag.name;")
+              id)))
+
+(define (optional-feed-element key value)
+  (if value (list (list key value)) '()))
+
+(define (write-feed mtime title self rows)
+  (let ((author-name  (get-config/default "author-name" "Unknown Author"))
+        (author-email (get-config         "author-email"))
+        (author-uri   (get-config         "author-uri"))
+        (id-prefix    (get-config/default "entry-id-prefix" "")))
+    (write-string
+      (serialize-sxml
+        `(*TOP* (@ (*NAMESPACES* (atom "http://www.w3.org/2005/Atom")))
+           (*PI* xml "version='1.0' encoding='utf-8'")
+           (atom:feed
+             (atom:title ,title)
+             (atom:author
+               (atom:name ,author-name)
+               ,@(optional-feed-element 'atom:email author-email)
+               ,@(optional-feed-element 'atom:uri   author-uri))
+             (atom:id ,self)
+             (atom:link (@ (rel "self") (href ,self)))
+             (atom:updated ,(rfc-3339 mtime))
+             ,@(map (lambda (r) (apply feed->sxml (cons id-prefix r))) rows)))
+        ns-prefixes: '((*default* . "http://www.w3.org/2005/Atom"))))))
+
+(define (feed-rows selector)
+  (query fetch-rows
+         (sql/transient db (string-append "SELECT id,url,type,description,
+                                                  notes,ptime,ctime,mtime
+                                           FROM entry " selector ";"))))

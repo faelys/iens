@@ -1245,58 +1245,8 @@
 ;;;;;;;;;;;;;;;;;;;;
 ;; Feed Generation
 
-(define (atom-content type descr notes)
-  (cond ((null? descr) `(atom:content ,notes))
-        ((null? type)  `(atom:content ,descr))
-        ((equal? type "markdown-li")
-          (let ((acc (open-output-string))
-                (prev-output (current-output-port)))
-            (current-output-port acc)
-            (let ((result (markdown->html (substring descr 3))))
-              (current-output-port prev-output)
-              (if result
-                  `(atom:content (@ (type "html")) ,(get-output-string acc))
-                  `(atom:content ,descr)))))
-        (else `(atom:content (@ (type ,type)) ,descr))))
-
-(define (feed->sxml id url type descr notes ptime ctime mtime)
-  `(atom:entry
-     (atom:id ,(string-append config-entry-id-prefix (number->string id)))
-     (atom:title ,url)
-     (atom:updated ,(rfc-3339 mtime))
-     (atom:published ,(rfc-3339 (if (null? ptime) ctime ptime)))
-     (atom:link (@ (rel "related") (href ,url)))
-     ,(atom-content type descr notes)
-     ,@(query (map-rows (lambda (x) `(atom:category (@ (term ,(car x))))))
-              (sql db "SELECT tag.name FROM tagrel
-                       OUTER LEFT JOIN tag ON tagrel.tag_id=tag.id
-                       WHERE url_id=? ORDER BY tag.name;")
-              id)))
-
-(define (write-feed mtime title self rows)
-  (write-string
-    (serialize-sxml
-      `(*TOP* (@ (*NAMESPACES* (atom "http://www.w3.org/2005/Atom")))
-         (*PI* xml "version='1.0' encoding='utf-8'")
-         (atom:feed
-           (atom:title ,title)
-           (atom:author
-             (atom:name ,(if config-author-name
-                             config-author-name
-                             "Unknown Author"))
-             ,@(if config-author-email `((atom:email ,config-author-email)) '())
-             ,@(if config-author-uri `((atom:uri ,config-author-uri)) '()))
-           (atom:id ,self)
-           (atom:link (@ (rel "self") (href ,self)))
-           (atom:updated ,(rfc-3339 mtime))
-           ,@(map (lambda (row) (apply feed->sxml row)) rows)))
-      ns-prefixes: '((*default* . "http://www.w3.org/2005/Atom")))))
-
 (define (generate-feed forced feed-id filename url selector title mtime)
-  (let* ((rows (query fetch-rows
-                      (sql db (string-append "SELECT id,url,type,description,
-                                                     notes,ptime,ctime,mtime
-                                              FROM entry " selector ";"))))
+  (let* ((rows (feed-rows selector)))
          (generate?
            (cond ((null? rows)
                    (when config-verbose
