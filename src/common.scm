@@ -29,6 +29,21 @@
             (else (loop (cdr items))))))
       #f)))
 
+(define (time->rfc-3339 time)
+  (let ((time-str (time->string time "%FT%T%z")))
+    (assert (= 24 (string-length time-str)))
+    (if (equal? "0000" (substring time-str 20))
+        (string-append (substring time-str 0 19) "Z")
+        (string-append (substring time-str 0 22)
+                       ":"
+                       (substring time-str 22)))))
+
+(define (rfc-3339-local seconds)
+  (time->rfc-3339 (seconds->local-time seconds)))
+(define (rfc-3339-utc seconds)
+  (time->rfc-3339 (seconds->utc-time seconds)))
+(define rfc-3339 rfc-3339-local)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Database Creation/Migration
 
