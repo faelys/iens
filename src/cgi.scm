@@ -16,11 +16,14 @@
   (chicken file posix)
   (chicken io)
   (chicken process-context)
+  (chicken sort)
   (chicken string)
   (chicken time)
+  (chicken time posix)
   comparse
   openssl ; must be above http-client
   http-client
+  lowdown
   rss
   sql-de-lite
   sxml-serializer)
@@ -616,6 +619,20 @@ END-OF-CSS
         (body (h1 ,title)
           ,@(edit-post-fragment* id))))))
 
+(define (feed-view id)
+  (let ((row (query fetch-row
+                    (sql/transient db "SELECT mtime,title,url,selector
+                                       FROM feed WHERE id=?;")
+                    id)))
+    (if (null? row)
+        (write-string "Status: 404\r\n\r\n")
+        (let ((mtime    (car    row))
+              (title    (cadr   row))
+              (self-url (caddr  row))
+              (selector (cadddr row)))
+          (write-string "Content-Type: application/atom+xml\r\n\r\n")
+          (write-feed mtime title self-url (feed-rows selector))))))
+
 (define (main-view)
   (catch-up)
   (gruik-list-view
@@ -856,6 +873,11 @@ END-OF-CSS
 (define route-deleted
   (preceded-by (char-seq "deleted")
                (result deleted-view)))
+(define route-feed
+  (sequence* ((_  (char-seq "feed/"))
+              (id (as-string (one-or-more irc-digit)))
+              (_  (char-seq ".atom")))
+    (result (lambda () (feed-view (string->number id))))))
 (define route-new
   (preceded-by (char-seq "new")
                (result new-view)))
@@ -891,6 +913,7 @@ END-OF-CSS
                          route-xdo-unmarked
                          route-deleted
                          route-edit
+                         route-feed
                          route-main
                          route-ok
                          route-new
