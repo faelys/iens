@@ -254,3 +254,44 @@
          (sql/transient db (string-append "SELECT id,url,type,description,
                                                   notes,ptime,ctime,mtime
                                            FROM entry " selector ";"))))
+
+;;;;;;;;;;;;;;;;;;;
+;; Feed Utilities
+
+(define (build-signature selector)
+  (query fetch-rows
+         (sql db (string-append "SELECT id,mtime FROM entry " selector ";"))))
+
+(define (car< a b) (< (car a) (car b)))
+
+(define (diff-signature old-sig new-sig)
+  (let loop ((old    (sort old-sig car<))
+             (new    (sort new-sig car<))
+             (result '()))
+    (cond ((and (null? old) (null? new))
+              result)
+          ((null? old)
+              (loop old
+                    (cdr new)
+                    (cons `(add ,@(car new)) result)))
+          ((null? new)
+              (loop (cdr old)
+                    new
+                    (cons `(del ,@(car old)) result)))
+          ((equal? (car new) (car old))
+              (loop (cdr old)
+                    (cdr new)
+                    result))
+          ((= (caar new) (caar old))
+              (loop (cdr old)
+                    (cdr new)
+                    (cons `(chg ,@(car old) ,(cadar new)) result)))
+          ((< (caar new) (caar old))
+              (loop old
+                    (cdr new)
+                    (cons `(add ,@(car new)) result)))
+          ((> (caar new) (caar old))
+              (loop (cdr old)
+                    new
+                    (cons `(del ,@(car old)) result)))
+          (else (assert #f "Should be unreachable")))))
