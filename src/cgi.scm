@@ -257,7 +257,13 @@ END-OF-CSS
   (die "Missing $DOCUMENT_ROOT"))
 (define db-name (get-environment-variable "IENS_DB"))
 (when (not db-name)
-    (die "Missing $IENS_DB"))
+  (die "Missing $IENS_DB"))
+(define feed-root
+  (let ((raw (get-environment-variable "FEED_ROOT")))
+    (cond
+      ((or (not raw) (zero? (string-length raw))) "")
+      ((eqv? #\/ (string-ref raw (sub1 (string-length raw)))) raw)
+      (else (string-append raw "/")))))
 
 (define db (open-database db-name))
 (exec (sql/transient db "PRAGMA foreign_keys = ON;"))
@@ -759,6 +765,17 @@ END-OF-CSS
                                " to " (rfc-3339 (cadddr hunk)))))
                  (else `(li ,(conc "malformed hunk: " hunk)))))
                diff))))
+(define (update-feed id)
+  (exec (sql/transient db "UPDATE feed SET mtime=? WHERE id=?;")
+        (current-seconds)
+        id)
+  (query (for-each-row
+           (lambda (row)
+             (apply generate-feed*
+               (cons (string-append feed-root (car row)) (cdr row)))))
+         (sql/transient db
+           "SELECT filename,mtime,title,url,selector FROM feed WHERE id=?;")
+         id))
 (define (fragment-diff-feed* base-sig)
   (let ((id       (car   base-sig))
         (title    (cadr  base-sig))
@@ -767,7 +784,9 @@ END-OF-CSS
     (let ((diff (diff-signature old-sig (build-signature selector))))
       (if (null? diff)
           '()
-          (fragment-sig-diff id title diff)))))
+          (begin
+            (update-feed id)
+            (fragment-sig-diff id title diff))))))
 (define (fragment-diff-feed base-sigs)
   (join (map fragment-diff-feed* base-sigs)))
 
