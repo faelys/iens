@@ -705,12 +705,12 @@ END-OF-CSS
       ((null? rest-before)
         (loop rest-before
               (cdr rest-after)
-              (cons (list 0 (conc "extra after: " (cadar rest-after)) 0)
+              (cons (list 0 (conc "extra after: " (cadar rest-after)) 0 0)
                     acc)))
       ((null? rest-after)
         (loop (cdr rest-before)
               rest-after
-              (cons (list 0 (conc "extra before: " (cadar rest-before)) 0)
+              (cons (list 0 (conc "extra before: " (cadar rest-before)) 0 0)
                     acc)))
       ((not (= (caar rest-before) (caar rest-after)))
         (loop (cdr rest-before)
@@ -718,7 +718,7 @@ END-OF-CSS
               (cons (list 0
                           (conc "id mismatch: "
                                 (caar rest-before) " / " (caar rest-after))
-                          0)
+                          0 0)
                     acc)))
       ((not (string=? (cadar rest-before) (cadar rest-after)))
         (loop (cdr rest-before)
@@ -726,7 +726,7 @@ END-OF-CSS
               (cons (list 0
                           (conc "text mismatch: "
                                 (cadar rest-before) " / " (cadar rest-after))
-                          0)
+                          0 0)
                     acc)))
       (else
         (loop (cdr rest-before)
@@ -734,8 +734,7 @@ END-OF-CSS
               (if (= (caddar rest-before) (caddar rest-after))
                   acc
                   (cons (list (caar rest-before)
-                              (cadar rest-after)
-                              (caddar rest-before)
+                              (cadar rest-before)
                               (caddar rest-after)
                               (- (caddar rest-after) (caddar rest-before)))
                         acc)))))))
@@ -744,7 +743,11 @@ END-OF-CSS
     (if (null? diff) '()
       `((table
         ,@(map (lambda (line)
-                 (cons 'tr (map (lambda (v) (list 'td (->string v))) line)))
+                 `(tr (td ,(conc "Selection #" (car line)))
+                      (td ,(cadr line))
+                      (td ,(->string (caddr line)))
+                      (td ,(conc (if (positive? (cadddr line)) "(+" "(")
+                                 (cadddr line) ")"))))
                diff))))))
 
 (define (feed-sig-base)
