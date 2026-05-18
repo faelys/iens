@@ -550,7 +550,7 @@ END-OF-CSS
                WHERE gruik.id=? GROUP BY gruik.id;")
       id)))
 
-(define (gruik-list-view title q)
+(define (gruik-list-view title footer q)
   (html-output
     `(html
       (head
@@ -565,13 +565,7 @@ END-OF-CSS
         ,@(query
            (map-rows* post-fragment)
            (sql db q))
-        (form (@ (method GET) (action "new") (id "load-new")
-                 (hx-swap "outerHTML")  (hx-post "x-new"))
-          ,(spinner)
-          (input (@ (type "hidden") (name "last-id") (value
-            ,(query fetch-value (sql db "SELECT MAX(id) FROM gruik;")))))
-          (input (@ (type "submit") (name "submit") (value "Load"))))
-))))
+        ,@footer))))
 
 (define (new-fragment)
   (catch-up)
@@ -604,6 +598,7 @@ END-OF-CSS
   (catch-up)
   (gruik-list-view
     "Deleted gruiks"
+    '()
     "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
             group_concat('#'||name,' ')
      FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
@@ -643,6 +638,12 @@ END-OF-CSS
   (catch-up)
   (gruik-list-view
     "Latest gruiks"
+    `((form (@ (method GET) (action "new") (id "load-new")
+               (hx-swap "outerHTML")  (hx-post "x-new"))
+        ,(spinner)
+        (input (@ (type "hidden") (name "last-id") (value
+          ,(query fetch-value (sql db "SELECT MAX(id) FROM gruik;")))))
+        (input (@ (type "submit") (name "submit") (value "Load")))))
     "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
             group_concat('#'||name,' ')
      FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
