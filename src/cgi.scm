@@ -908,29 +908,21 @@ END-OF-CSS
   (preceded-by (char-seq "xdo-edit")
                (result xdo-edit)))
 (define route-do-locked
-  (preceded-by (char-seq "do-locked")
-               (result do-locked)))
-(define route-xdo-locked
-  (preceded-by (char-seq "xdo-locked")
-               (result xdo-locked)))
+  (sequence* ((x? (maybe (is #\x)))
+              (_  (char-seq "do-locked")))
+    (result (lambda () (if x? (xdo-locked) (do-locked))))))
 (define route-do-marked
-  (preceded-by (char-seq "do-marked")
-               (result do-marked)))
-(define route-xdo-marked
-  (preceded-by (char-seq "xdo-marked")
-               (result xdo-marked)))
+  (sequence* ((x? (maybe (is #\x)))
+              (_  (char-seq "do-marked")))
+    (result (lambda () (if x? (xdo-marked) (do-marked))))))
 (define route-do-undelete
-  (preceded-by (char-seq "do-undelete")
-               (result do-undelete)))
-(define route-xdo-undelete
-  (preceded-by (char-seq "xdo-undelete")
-               (result xdo-undelete)))
+  (sequence* ((x? (maybe (is #\x)))
+              (_  (char-seq "do-undelete")))
+    (result (lambda () (if x? (xdo-undelete) (do-undelete))))))
 (define route-do-unmarked
-  (preceded-by (char-seq "do-unmarked")
-               (result do-unmarked)))
-(define route-xdo-unmarked
-  (preceded-by (char-seq "xdo-unmarked")
-               (result xdo-unmarked)))
+  (sequence* ((x? (maybe (is #\x)))
+              (_  (char-seq "do-unmarked")))
+    (result (lambda () (if x? (xdo-unmarked) (do-unmarked))))))
 (define route-deleted
   (preceded-by (char-seq "deleted")
                (result deleted-view)))
@@ -968,10 +960,6 @@ END-OF-CSS
                          route-do-undelete
                          route-do-unmarked
                          route-xdo-edit
-                         route-xdo-locked
-                         route-xdo-marked
-                         route-xdo-undelete
-                         route-xdo-unmarked
                          route-deleted
                          route-edit
                          route-feed
