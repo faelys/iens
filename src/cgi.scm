@@ -526,7 +526,7 @@ END-OF-CSS
                WHERE gruik.id=? GROUP BY gruik.id;")
       id)))
 
-(define (gruik-list-view title footer q)
+(define (gruik-list-view title footer q . args)
   (html-output
     `(html
       (head
@@ -538,9 +538,10 @@ END-OF-CSS
         (script (@ (src "https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js")) "")
         (style ,css-style))
       (body (h1 ,title)
-        ,@(query
+        ,@(apply query
            (map-rows* post-fragment)
-           (sql db q))
+           (sql db q)
+           args)
         ,@footer))))
 
 (define (new-fragment)
@@ -625,6 +626,18 @@ END-OF-CSS
      FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
                 LEFT OUTER JOIN tag ON tag_id=tag.id
      WHERE mark >= -5 GROUP BY gruik.id;"))
+
+(define (view-domain-search q)
+  (gruik-list-view
+    (conc "Domain " q)
+    '()
+    "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
+            group_concat('#'||name,' ')
+     FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
+                LEFT OUTER JOIN tag ON tag_id=tag.id
+     WHERE instr(url,?)>0 GROUP BY gruik.id
+     ORDER BY ptime"
+    (conc "://" q "/")))
 
 (define (db-push-gruik str-id)
   (let ((id (string->number str-id)))
@@ -881,6 +894,10 @@ END-OF-CSS
 (define route-x-new
   (preceded-by (char-seq "x-new")
                (result new-fragment)))
+(define route-domain-search
+  (sequence* ((_ (char-seq "domains/"))
+              (q (as-string (repeated item))))
+    (result (lambda () (view-domain-search q)))))
 (define route-spinner
   (preceded-by (char-seq "spinner")
                (result (lambda () (htmx-output (spinner))))))
@@ -903,6 +920,7 @@ END-OF-CSS
                          route-do-marked
                          route-do-undelete
                          route-do-unmarked
+                         route-domain-search
                          route-xdo-edit
                          route-deleted
                          route-edit
