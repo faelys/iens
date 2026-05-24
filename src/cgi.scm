@@ -635,7 +635,15 @@ END-OF-CSS
             group_concat('#'||name,' ')
      FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
                 LEFT OUTER JOIN tag ON tag_id=tag.id
-     WHERE instr(url,?)>0 GROUP BY gruik.id
+     WHERE instr(url,?1)>0 GROUP BY gruik.id
+     UNION ALL
+     SELECT -entry.id,(CASE WHEN protected=0 THEN 2 ELSE 3 END),
+            strftime('%Y.%m.%d %H:%M:%S',ctime,'unixepoch') AS ptime,
+            'Iens','',url,NULL,
+            group_concat('#'||name,' ')
+     FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
+                LEFT OUTER JOIN tag ON tag_id=tag.id
+     WHERE instr(url,?1)>0 GROUP BY url_id
      ORDER BY ptime"
     (conc "://" q "/")))
 
