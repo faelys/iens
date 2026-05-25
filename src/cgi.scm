@@ -36,6 +36,7 @@ pre { overflow: auto; }
 .marked-post { background: #ccf; }
 .locked-post { background: #cff; }
 .protected-post { background: #cfc; }
+.detailed-post { margin: 1rex; padding: 0.5rex; }
 form {
   margin: 1rex 0;
   display: grid;
@@ -515,6 +516,25 @@ END-OF-CSS
                       (class rsub) (value ,rlabel))))
           '()))))
 
+(define (detailed-post-fragment id mark ptime section title url comm-url
+                                tags description)
+  `(div (@ (class ,(case mark ((0)  "unmarked-post")
+                              ((1)  "marked-post")
+                              ((2)  "locked-post")
+                              ((3)  "protected-post")
+                              (else "bad-post"))
+                   "detailed-post"))
+    (p
+      (span (@ (class "ptime") (title ,id)) ,ptime)
+      ,(if (null? comm-url)
+           `(span (@ (class "section")) ,section)
+           `(a (@ (href ,comm-url) (class "section")) ,section))
+      ,@(if (or (null? tags) (string=? tags "")) '()
+           `((span (@ (class "taglist")) ,tags)))
+      (span (@ (class "title")) ,(if (null? title) "" title))
+      (a (@ (href ,url)) ,url))
+    (pre (code ,description))))
+
 (define (post-htmx id)
   (htmx-output
     (query
@@ -526,7 +546,7 @@ END-OF-CSS
                WHERE gruik.id=? GROUP BY gruik.id;")
       id)))
 
-(define (gruik-list-view title footer q . args)
+(define (gruik-list-view title row->fragment footer q . args)
   (html-output
     `(html
       (head
@@ -539,7 +559,7 @@ END-OF-CSS
         (style ,css-style))
       (body (h1 ,title)
         ,@(apply query
-           (map-rows* post-fragment)
+           (map-rows* row->fragment)
            (sql db q)
            args)
         ,@footer))))
@@ -575,6 +595,7 @@ END-OF-CSS
   (catch-up)
   (gruik-list-view
     "Deleted gruiks"
+    post-fragment
     '()
     "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
             group_concat('#'||name,' ')
@@ -615,6 +636,7 @@ END-OF-CSS
   (catch-up)
   (gruik-list-view
     "Latest gruiks"
+    post-fragment
     `((form (@ (method GET) (action "new") (id "load-new")
                (hx-swap "outerHTML")  (hx-post "x-new"))
         ,(spinner)
@@ -630,9 +652,10 @@ END-OF-CSS
 (define (view-domain-search q)
   (gruik-list-view
     (conc "Domain " q)
+    detailed-post-fragment
     '()
     "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
-            group_concat('#'||name,' ')
+            group_concat('#'||name,' '),COALESCE(description,notes)
      FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
                 LEFT OUTER JOIN tag ON tag_id=tag.id
      WHERE instr(url,?1)>0 GROUP BY gruik.id
@@ -640,7 +663,7 @@ END-OF-CSS
      SELECT -entry.id,(CASE WHEN protected=0 THEN 2 ELSE 3 END),
             strftime('%Y.%m.%d %H:%M:%S',ctime,'unixepoch') AS ptime,
             'Iens','',url,NULL,
-            group_concat('#'||name,' ')
+            group_concat('#'||name,' '),COALESCE(description,notes)
      FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
                 LEFT OUTER JOIN tag ON tag_id=tag.id
      WHERE instr(url,?1)>0 GROUP BY url_id
