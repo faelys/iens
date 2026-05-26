@@ -399,6 +399,18 @@ END-OF-CSS
     (span (@ (class "title")) ,title)
     (a (@ (href ,url)) ,url)))
 
+(define (domain-counts url)
+  (and-let* ((i1     (substring-index "://" url))
+             (i2     (substring-index "/" url (+ i1 3)))
+             (s      (substring url i1 (add1 i2)))
+             (domain (substring url (+ i1 3) i2)))
+    (list domain
+      (query fetch-value
+             (sql db "SELECT COUNT(*) FROM entry WHERE instr(url,?)>0") s)
+      (query fetch-value
+             (sql db "SELECT COUNT(*) FROM gruik
+                      WHERE mark>=0 AND instr(url,?)>0") s))))
+
 (define (edit-post-fragment id ptime section title url comm-url mark notes description tags)
   `(form (@ (method "POST") (action "do-edit")
             (id ,(conc "post-" id)) (class "edit-post")
@@ -406,6 +418,13 @@ END-OF-CSS
     (input (@ (type "submit") (name "submit") (class lsub) (value "Edit")))
     (div (@ (class "form-body"))
       ,(post-p-fragment id ptime section title url comm-url tags)
+      ,@(let ((counts (domain-counts url)))
+         (if (and counts (positive? (+ (cadr counts) (caddr counts) -1)))
+           `((p "Entries and gruiks from "
+                (a (@ (href ,(conc "domains/" (car counts))))
+                   ,(car counts))
+                ,(conc ": " (cadr counts) "+" (caddr counts))))
+           '()))
       (p ,(conc "Mark: " mark)
         (label (input (@ (type radio) (name mark) (value 0))) "Unmark")
         (label (input (@ (type radio) (name mark) (value 1) (checked))) "Keep")
