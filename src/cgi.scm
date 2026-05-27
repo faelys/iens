@@ -577,6 +577,8 @@ END-OF-CSS
         (script (@ (src "https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js")) "")
         (style ,css-style))
       (body (h1 ,title)
+        (p (a (@ (href "./")) "Latest gruiks")
+              (a (@ (href "deleted")) "Deleted gruiks"))
         ,@(apply query
            (map-rows* row->fragment)
            (sql db q)
