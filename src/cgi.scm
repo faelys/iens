@@ -136,7 +136,9 @@ END-OF-CSS
                (l url-hdigit))
      (result (integer->char (+ (* 16 h) l)))))
 (define url-value
-  (as-string (repeated (any-of url-percent-escape item) until: (is #\&)))
+  (as-string
+    (any-of (repeated (any-of url-percent-escape item) until: (is #\&))
+            (repeated (any-of url-percent-escape item)))))
 (define url-key
   (as-string (repeated item until: (is #\=))))
 (define url-kv-pair
@@ -697,6 +699,18 @@ END-OF-CSS
      ORDER BY ptime"
     (conc "://" q "/")))
 
+(define (view-url-search op q)
+  (gruik-list-view
+    (conc "Gruks " op " " q)
+    detailed-post-fragment
+    '()
+    (conc "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
+                  group_concat('#'||name,' '),COALESCE(description,notes)
+           FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
+                      LEFT OUTER JOIN tag ON tag_id=tag.id
+           WHERE url " op " ? GROUP BY gruik.id;")
+    q))
+
 (define (db-push-gruik str-id)
   (let ((id (string->number str-id)))
     (with-transaction db
@@ -956,6 +970,14 @@ END-OF-CSS
   (sequence* ((_ (char-seq "domains/"))
               (q (as-string (repeated item))))
     (result (lambda () (view-domain-search q)))))
+(define route-url-search
+  (sequence* ((_  (char-seq "url?"))
+              (op (any-of (char-seq "glob")
+                          (char-seq "like")
+                          (char-seq "regexp")))
+              (_  (is #\=))
+              (q  url-value))
+    (result (lambda () (view-url-search op q)))))
 (define route-spinner
   (preceded-by (char-seq "spinner")
                (result (lambda () (htmx-output (spinner))))))
@@ -987,6 +1009,7 @@ END-OF-CSS
                          route-ok
                          route-new
                          route-spinner
+                         route-url-search
                          route-x-new)))))
 
 (let* ((uri (get-environment-variable "REQUEST_URI"))
