@@ -586,7 +586,7 @@ END-OF-CSS
         (style ,css-style))
       (body (h1 ,title)
         (p (a (@ (href "./")) "Latest gruiks")
-              (a (@ (href "deleted")) "Deleted gruiks"))
+           (a (@ (href "deleted")) "Deleted gruiks"))
         ,@(apply query
            (map-rows* row->fragment)
            (sql db q)

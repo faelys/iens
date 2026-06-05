@@ -1222,7 +1222,7 @@
         (alist-update! feed-id
                        (map (lambda (row) (list (car row) (list-ref row 7)))
                             rows)
-                       feed-cache =)))))
+                       feed-cache =))))
 
 (define (generate-feeds forced id-list)
   (for-each
