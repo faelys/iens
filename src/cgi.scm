@@ -834,10 +834,16 @@ END-OF-CSS
   (exec (sql/transient db "UPDATE feed SET mtime=? WHERE id=?;")
         (current-seconds)
         id)
-  (query (for-each-row
-           (lambda (row)
-             (apply generate-feed*
-               (cons (string-append feed-root (car row)) (cdr row)))))
+  (query (for-each-row*
+           (lambda (filename mtime title self-url selector)
+             (let ((rows (feed-rows selector)))
+               (unless (null? rows)
+                 (with-output-to-file (string-append feed-root filename)
+                   (lambda ()
+                     (if (null? mtime) (list-ref (car rows) 7) mtime)
+                     title
+                     self-url
+                     rows))))))
          (sql/transient db
            "SELECT filename,mtime,title,url,selector FROM feed WHERE id=?;")
          id))
