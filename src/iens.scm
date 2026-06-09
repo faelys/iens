@@ -1193,7 +1193,7 @@
 ;; Feed Generation
 
 (define (generate-feed forced feed-id filename url selector title mtime)
-  (let* ((rows (feed-rows selector)))
+  (let* ((rows (feed-rows selector))
          (generate?
            (cond ((null? rows)
                    (when config-verbose
@@ -1222,7 +1222,7 @@
         (alist-update! feed-id
                        (map (lambda (row) (list (car row) (list-ref row 7)))
                             rows)
-                       feed-cache =))))
+                       feed-cache =)))))
 
 (define (generate-feeds forced id-list)
   (for-each

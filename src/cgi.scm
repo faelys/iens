@@ -840,10 +840,11 @@ END-OF-CSS
                (unless (null? rows)
                  (with-output-to-file (string-append feed-root filename)
                    (lambda ()
-                     (if (null? mtime) (list-ref (car rows) 7) mtime)
-                     title
-                     self-url
-                     rows))))))
+                     (write-feed
+                       (if (null? mtime) (list-ref (car rows) 7) mtime)
+                       title
+                       self-url
+                       rows)))))))
          (sql/transient db
            "SELECT filename,mtime,title,url,selector FROM feed WHERE id=?;")
          id))
