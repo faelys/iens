@@ -279,7 +279,7 @@ END-OF-CSS
 
 (include "common.scm")
 
-(unless (= 5 (db-version))
+(unless (= 6 (db-version))
   (die "Unexpectad database version"))
 
 
@@ -753,13 +753,13 @@ END-OF-CSS
         old-v
         id))
 
-(define (db-sel-count id text)
-  (list id text
+(define (db-sel-count id text name)
+  (list id text name
     (query fetch-value
            (sql db (string-append "SELECT COUNT(id) FROM entry " text ";")))))
 (define (db-sel-counts)
   (query (map-rows* db-sel-count)
-         (sql db "SELECT id,text FROM selector ORDER BY id DESC;")))
+         (sql db "SELECT id,text,name FROM selector ORDER BY id DESC;")))
 (define (diff-sel-counts before after)
   (let loop ((rest-before before) (rest-after after) (acc '()))
     (cond
@@ -790,26 +790,37 @@ END-OF-CSS
                                 (cadar rest-before) " / " (cadar rest-after))
                           0 0)
                     acc)))
-      (else
+      ((not (string=? (caddar rest-before) (caddar rest-after)))
         (loop (cdr rest-before)
               (cdr rest-after)
-              (if (= (caddar rest-before) (caddar rest-after))
-                  acc
-                  (cons (list (caar rest-before)
-                              (cadar rest-before)
-                              (caddar rest-after)
-                              (- (caddar rest-after) (caddar rest-before)))
-                        acc)))))))
+              (cons (list 0
+                          (conc "name mismatch: "
+                                (caddar rest-before) " / " (caddar rest-after))
+                          0 0)
+                    acc)))
+      (else
+        (let ((n-before (car (cdddar rest-before)))
+              (n-after  (car (cdddar rest-after))))
+          (loop (cdr rest-before)
+                (cdr rest-after)
+                (if (= n-before n-after)
+                    acc
+                    (cons (list (caar rest-before)
+                                (cadar rest-before)
+                                (caddar rest-before)
+                                n-after
+                                (- n-after n-before))
+                          acc))))))))
 (define (fragment-diff-sel-counts before after)
   (let ((diff (diff-sel-counts before after)))
     (if (null? diff) '()
       `((table
         ,@(map (lambda (line)
                  `(tr (td ,(conc "Selection #" (car line)))
-                      (td ,(cadr line))
-                      (td ,(->string (caddr line)))
-                      (td ,(conc (if (positive? (cadddr line)) "(+" "(")
-                                 (cadddr line) ")"))))
+                      (td (@ (title ,(list-ref line 1))) ,(list-ref line 2))
+                      (td ,(->string (list-ref line 3)))
+                      (td ,(conc (if (positive? (list-ref line 4)) "(+" "(")
+                                 (list-ref line 4) ")"))))
                diff))))))
 
 (define (feed-sig-base)

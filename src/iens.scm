@@ -100,7 +100,7 @@
 
 (include "common.scm")
 
-(assert (= 5 (db-version)))
+(assert (= 6 (db-version)))
 
 ;;;;;;;;;;;;;;;;;;
 ;; Configuration
@@ -174,37 +174,37 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Configurable Query Selectors
 
-(defcmd (add-selector text)
-  "\"WHERE …\"" "Creates a pre-defined query selector"
+(defcmd (add-selector name text)
+  "\"Name\" \"WHERE …\"" "Creates a pre-defined query selector"
   (trace `(add-select ,text))
-  (exec (sql db "INSERT INTO selector(text) VALUES (?);") text)
+  (exec (sql db "INSERT INTO selector(text, name) VALUES (?,?);") text name)
   (write-line (conc " -> " (last-insert-rowid db))))
 
 (define (call-with-selector arg proc)
-  (cond ((string? arg) (proc arg #f))
+  (cond ((string? arg) (proc #f arg arg))
         ((number? arg) (let ((selector (get-selector arg)))
                          (if selector
-                             (proc selector arg)
+                             (proc arg (car selector) (cadr selector))
                              (write-line
                                (conc "No selector #" arg " found")))))
         (else (write-line (conc "Invalid selection argument " arg)))))
 
 (define (get-selector id)
-  (query fetch-value (sql db "SELECT text FROM selector WHERE id=?;") id))
+  (query fetch-row (sql db "SELECT name,text FROM selector WHERE id=?;") id))
 
 (defcmd (list-selectors)
   "" "List pre-defined query selectors"
   (query
     (for-each-row
       (lambda (row)
-        (write-line (conc "#" (car row) ": \"" (cadr row) "\""))))
-    (sql db "SELECT id,text FROM selector;")))
+        (write-line (conc "#" (car row) " " (cadr row) ": \"" (caddr row) "\""))))
+    (sql db "SELECT id,name,text FROM selector;")))
 
-(defcmd (set-selector id text)
-  "id \"WHERE …\"" "Sets a pre-defined query selector"
-  (trace `(set-selector ,id ,text))
-  (exec (sql db "INSERT OR REPLACE INTO selector(id,text) VALUES (?,?);")
-        id text))
+(defcmd (set-selector id name text)
+  "id \"Name\" \"WHERE …\"" "Sets a pre-defined query selector"
+  (trace `(set-selector ,id ,name ,text))
+  (exec (sql db "INSERT OR REPLACE INTO selector(id,name,text) VALUES (?,?,?);")
+        id name text))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Database Updates
@@ -619,9 +619,9 @@
                     vt100-reset))
   (write-string notes))
 
-(define (count-selection* text id)
+(define (count-selection* id name text)
   (write-line (string-append (if id (conc "#" id ": ") "")
-                             "\"" text "\""))
+                             "\"" name "\""))
   (write-line (conc " -> " (query fetch-value
                                   ((if id sql sql/transient)
                                     db
@@ -633,7 +633,7 @@
   "\"WHERE ...\"|selector-id ..." "Count results of a custom queries"
   (if (null? args)
       (query (for-each-row* count-selection*)
-             (sql db "SELECT text,id FROM selector;"))
+             (sql db "SELECT id,name,text FROM selector;"))
       (let loop ((todo args))
         (unless (null? todo)
           (call-with-selector (car todo) count-selection*)
@@ -642,7 +642,7 @@
 (defcmd (list-selection arg)
   "\"WHERE ...\"|selector-id" "Display a custom query as an entry list"
   (call-with-selector arg
-    (lambda (selector id)
+    (lambda (id title selector)
       (query (for-each-row* print-listed-entry-row)
              ((if id sql sql/transient) db
                (string-append "SELECT id,url,notes,protected FROM entry "
@@ -703,7 +703,7 @@
 (defcmd (print-selection arg)
   "\"WHERE ...\"|selector-id" "Display entries from a custom query"
   (call-with-selector arg
-    (lambda (selector id)
+    (lambda (id title selector)
       (query
         (for-each-row* print-entry-row)
         ((if id sql sql/transient) db

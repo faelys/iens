@@ -182,6 +182,13 @@
           "UPDATE gruik SET mark=-10 WHERE mark=-1;"
           "PRAGMA user_version = 5;")))
 
+(when (= 5 (db-version))
+  (for-each
+    (lambda (s) (exec (sql/transient db s)))
+    (list "ALTER TABLE selector ADD COLUMN name TEXT;"
+          "UPDATE selector SET name = text;"
+          "PRAGMA user_version = 6;")))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Database Utilitities
 
