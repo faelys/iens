@@ -586,7 +586,8 @@ END-OF-CSS
         (style ,css-style))
       (body (h1 ,title)
         (p (a (@ (href "./")) "Latest gruiks")
-           (a (@ (href "deleted")) "Deleted gruiks"))
+           (a (@ (href "deleted")) "Deleted gruiks")
+           (a (@ (href "no-comm")) "Commentless gruiks"))
         ,@(apply query
            (map-rows* row->fragment)
            (sql db q)
@@ -698,6 +699,18 @@ END-OF-CSS
      WHERE instr(url,?1)>0 GROUP BY url_id
      ORDER BY ptime"
     (conc "://" q "/")))
+
+(define (view-no-comm)
+  (catch-up)
+  (gruik-list-view
+    "Marked gruiks without comment URL"
+    post-fragment
+    '()
+    "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
+            group_concat('#'||name,' ')
+     FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
+                LEFT OUTER JOIN tag ON tag_id=tag.id
+     WHERE mark >= 1 AND COALESCE(comment_url,'') = '' GROUP BY gruik.id;"))
 
 (define (view-url-search op q)
   (gruik-list-view
@@ -988,6 +1001,9 @@ END-OF-CSS
   (sequence* ((_ (char-seq "domains/"))
               (q (as-string (repeated item))))
     (result (lambda () (view-domain-search q)))))
+(define route-no-comm
+  (preceded-by (char-seq "no-comm")
+               (result view-no-comm)))
 (define route-url-search
   (sequence* ((_  (char-seq "url?"))
               (op (any-of (char-seq "glob")
@@ -1026,6 +1042,7 @@ END-OF-CSS
                          route-main
                          route-ok
                          route-new
+                         route-no-comm
                          route-spinner
                          route-url-search
                          route-x-new)))))
