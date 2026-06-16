@@ -379,6 +379,17 @@ END-OF-CSS
             (conc " + [](" url ")\n(via " section " sur #gcufeed)")
             id))))))
 
+(define (output-log-counts)
+  (let ((ne (query fetch-value
+                   (sql db "SELECT COUNT(*) FROM entry WHERE protected=0;")))
+        (ng (query fetch-value
+                   (sql db "SELECT COUNT(*) FROM gruik WHERE mark>0;"))))
+    (write-line (conc (rfc-3339 (current-seconds)) "\t" ne "\t" ng))))
+(define (log-counts)
+  (let ((fname (get-environment-variable "NLOG")))
+    (when fname
+      (with-output-to-file fname output-log-counts #:append #:text))))
+
 (define (spinner-bar x y height beg)
   `(rect (@ (x ,x) (y ,y) (width 15) (height ,height) (rx 6))
     (animate (@ (attributeName height) (begin ,beg) (dur "1s")
@@ -755,7 +766,8 @@ END-OF-CSS
                    WHERE gruik_id=?;")
           id)
         (db-set-mark id 2 -10)
-        (db-set-mark id 3 -10)))))
+        (db-set-mark id 3 -10)))
+    (log-counts)))
 
 (define (db-set-mark id old-v new-v)
   (exec (sql db "UPDATE gruik SET mtime=?, mark=?, stime=COALESCE(stime,?)
@@ -928,6 +940,7 @@ END-OF-CSS
                   (redirect (conc "/gruik/" id))))
       ((string=? submit "Unmark")
         (db-set-mark id 1 0)
+        (log-counts)
         (if htmx? (post-htmx id) (redirect "/")))
       (else (bad-input "bad value for submit")))))
 
@@ -957,6 +970,7 @@ END-OF-CSS
     (cond
       ((string=? submit "Mark")
         (db-set-mark id 0 1)
+        (log-counts)
         (auto-descr id)
         (if htmx? (post-htmx id) (redirect "/")))
       ((string=? submit "Delete")
