@@ -29,6 +29,7 @@
   sxml-serializer)
 
 (define css-style #<<END-OF-CSS
+* { box-sizing: border-box; }
 h1 { text-align: center; }
 pre { overflow: auto; }
 .form-body { overflow: auto; }
@@ -45,6 +46,7 @@ form {
 }
 .lsub { width: 4.5rem; height: 3rem; }
 .rsub { width: 4.5rem; height: 3rem; }
+input[type=url] { display: block; width: 100%; }
 textarea { display: block; max-width: 100%; }
 .tag-list { column-width: 10rem; column-gap: 1rem; }
 .tag-list label { display: block; }
