@@ -31,6 +31,7 @@
 (define css-style #<<END-OF-CSS
 * { box-sizing: border-box; }
 h1 { text-align: center; }
+nav ul { display: flex; justify-content: space-evenly; align-items: center; list-style-type: none; margin: 2ex 0; padding: 0; }
 pre { overflow: auto; }
 .form-body { overflow: auto; }
 .bad-post { background: #fcc; }
@@ -603,9 +604,10 @@ END-OF-CSS
         (script (@ (src "https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js")) "")
         (style ,css-style))
       (body (h1 ,title)
-        (p (a (@ (href "./")) "Latest gruiks")
-           (a (@ (href "deleted")) "Deleted gruiks")
-           (a (@ (href "no-comm")) "Commentless gruiks"))
+        (nav (ul
+          (li (a (@ (href "./")) "Latest gruiks"))
+          (li (a (@ (href "deleted")) "Deleted gruiks"))
+          (li (a (@ (href "no-comm")) "Sourceless gruiks"))))
         ,@(apply query
            (map-rows* row->fragment)
            (sql db q)
