@@ -282,7 +282,7 @@ END-OF-CSS
 
 (include "common.scm")
 
-(unless (= 6 (db-version))
+(unless (= 7 (db-version))
   (die "Unexpectad database version"))
 
 
@@ -712,7 +712,8 @@ END-OF-CSS
      UNION ALL
      SELECT -entry.id,(CASE WHEN protected=0 THEN 2 ELSE 3 END),
             strftime('%Y.%m.%d %H:%M:%S',ctime,'unixepoch') AS ptime,
-            'Iens','',url,NULL,
+            COALESCE(source,'Untracked Ien'),
+            COALESCE(title,''),url,source_url,
             group_concat('#'||name,' '),COALESCE(description,notes)
      FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
                 LEFT OUTER JOIN tag ON tag_id=tag.id
@@ -749,7 +750,9 @@ END-OF-CSS
     (with-transaction db
       (lambda ()
         (exec
-          (sql db "INSERT INTO entry(url,type,description,notes,ctime,mtime,ptime,protected)
+          (sql db "INSERT INTO entry(url,type,description,notes,
+                                     title,source,source_url,
+                                     ctime,mtime,ptime,protected)
                    SELECT url,
                           CASE WHEN description IS NULL THEN NULL
                                WHEN substr(description,1,1)='<' THEN 'html'

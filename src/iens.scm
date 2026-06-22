@@ -100,7 +100,7 @@
 
 (include "common.scm")
 
-(assert (= 6 (db-version)))
+(assert (= 7 (db-version)))
 
 ;;;;;;;;;;;;;;;;;;
 ;; Configuration
@@ -594,16 +594,23 @@
   "Append new lines of notes"
   (apply add-notes* (time-id-strings args)))
 
-(define (print-entry-row id url type descr notes protected ptime ctime mtime tags)
+(define (print-entry-row id url type descr notes title source source-url
+         protected ptime ctime mtime tags)
   (write-line (conc vt100-entry-header
                     "#" id (if (zero? protected) "" "*") " - " url
                     vt100-reset))
-    (unless (null? ctime) (write-line (conc "Created   " (rfc-3339 ctime))))
-    (unless (null? ptime) (write-line (conc "Protected " (rfc-3339 ptime))))
-    (unless (null? mtime) (write-line (conc "Modified  " (rfc-3339 mtime))))
+    (unless (null? ctime) (write-line (conc "Created:   " (rfc-3339 ctime))))
+    (unless (null? ptime) (write-line (conc "Protected: " (rfc-3339 ptime))))
+    (unless (null? mtime) (write-line (conc "Modified:  " (rfc-3339 mtime))))
+    (unless (null? title) (write-line (conc "Title:     " title)))
+    (if (null? source)
+        (unless (null? source-url)
+          (write-line (conc "Orphan source URL: " source-url)))
+        (write-line (conc "from " source
+          (if (null? source-url) "" (conc " " source-url)))))
     (unless (null? descr)
       (if (null? type)
-          (write-line "Descripiton:")
+          (write-line "Description:")
           (write-line (conc "Description (" type "):")))
       (write-string descr))
     (unless (null? notes)
@@ -683,8 +690,9 @@
 
 (define (print-entry* entry-id)
   (query (for-each-row* print-entry-row)
-         (sql db "SELECT entry.id,url,type,description,notes,
-                         protected,ptime,ctime,mtime,group_concat(tag.name,' ')
+         (sql db "SELECT entry.id, url, type, description, notes,
+                         title, source, source_url, protected,
+                         ptime, ctime, mtime, group_concat(tag.name, ' ')
                   FROM entry
                   LEFT OUTER JOIN tagrel ON entry.id=tagrel.url_id
                   LEFT OUTER JOIN tag ON tag.id=tagrel.tag_id
@@ -708,8 +716,9 @@
         (for-each-row* print-entry-row)
         ((if id sql sql/transient) db
           (string-append
-            "SELECT entry.id,url,type,description,notes,
-                    protected,ptime,ctime,mtime,group_concat(tag.name,' ')
+            "SELECT entry.id, url, type, description, notes,
+                         title, source, source_url, protected,
+                         ptime, ctime, mtime, group_concat(tag.name, ' ')
              FROM entry
              LEFT OUTER JOIN tagrel ON entry.id=tagrel.url_id
              LEFT OUTER JOIN tag ON tag.id=tagrel.tag_id "
@@ -763,6 +772,47 @@
     ((2) (set-descr* (current-seconds) first (car args) (cadr args)))
     ((3) (set-descr* first (car args) (cadr args) (caddr args)))
     (else (assert #f "Too many arguments to set-descr " (cons first args)))))
+
+(define (set-source* mtime entry-id source source-url)
+  (trace `(set-source ,mtime ,entry-id ,source ,source-url))
+  (unless-protected entry-id
+    (exec (sql db "UPDATE entry
+                   SET source=?, source_url=COALESCE(?,source_url), mtime=?
+                   WHERE id=?;")
+          source source-url mtime entry-id)))
+
+(defcmd (set-source first . args)
+  "[[mtime] entry-id] source [source-URL]" "Sets entry source"
+  (case (length args)
+    ((0) (set-source* (current-seconds) cur-entry first '()))
+    ((1) (cond
+           ((string? (car args))
+             (set-source* (current-seconds) cur-entry first (car args)))
+           ((number? (car args))
+             (set-source* (current-seconds) first (car args) '()))
+           (else (assert #f "Unsupported arg types in " (cons first args)))))
+    ((2) (cond
+           ((string? (cadr args))
+             (set-source* (current-seconds) first (car args) (cadr args)))
+           ((number? (cadr args))
+             (set-source* first (car args) (cadr args) '()))
+           (else (assert #f "Unsupported arg types in " (cons first args)))))
+    ((3) (set-descr* first (car args) (cadr args) (caddr args)))
+    (else (assert #f "Too many arguments to set-source " (cons first args)))))
+
+(define (set-title* mtime entry-id title)
+  (trace `(set-title ,mtime ,entry-id ,title))
+  (unless-protected entry-id
+    (exec (sql db "UPDATE entry SET title=?, mtime=? WHERE id=?;")
+          title mtime entry-id)))
+
+(defcmd (set-title first . args)
+  "[[mtime] entry-id] title" "Sets entry title"
+  (case (length args)
+    ((0) (set-title* (current-seconds) cur-entry first))
+    ((1) (set-title* (current-seconds) first (car args)))
+    ((2) (set-title* first (car args) (cadr args)))
+    (else (assert #f "Too many arguments to set-title " (cons first args)))))
 
 (defcmd (set-entry arg)
   "entry-id|url" "Set current entry"

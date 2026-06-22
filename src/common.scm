@@ -60,6 +60,7 @@
                              auto INTEGER DEFAULT 0);"
           "CREATE TABLE entry (id INTEGER PRIMARY KEY,
              url TEXT NOT NULL, type TEXT, description TEXT, notes TEXT,
+             title TEXT, section TEXT, section_url TEXT,
              protected INTEGER DEFAULT 0, ptime INTEGER,
              ctime INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
              mtime INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP);"
@@ -188,6 +189,45 @@
     (list "ALTER TABLE selector ADD COLUMN name TEXT;"
           "UPDATE selector SET name = text;"
           "PRAGMA user_version = 6;")))
+
+(when (= 6 (db-version))
+  (with-transaction db
+    (lambda ()
+      (for-each
+        (lambda (s) (exec (sql/transient db s)))
+        (list
+          "ALTER TABLE entry ADD COLUMN title TEXT;"
+          "ALTER TABLE entry ADD COLUMN source TEXT;"
+          "ALTER TABLE entry ADD COLUMN source_url TEXT;"
+          "UPDATE entry
+           SET title=rtrim(substr(notes,
+                                  instr(notes,']')+2,
+                                  instr(notes,'://')-instr(notes,']')-7),
+                           ' '||CHAR(10)),
+               source=substr(notes,
+                             instr(notes,'[')+1,
+                             instr(notes,']')-instr(notes,'[')-1)
+           WHERE notes GLOB '*ruikBot*';"
+;          WHERE notes REGEXP '^[0-9.: <]*[GMN]ruikBot_?> \\[[^]]*\\]';"
+          "UPDATE entry SET source=substr(source,1,instr(source,':')-1)
+           WHERE instr(source,':')>0;"
+          "UPDATE entry SET source=substr(source,1,instr(source,' - ')-1)
+           WHERE instr(source,' - ')>0;"
+          "UPDATE entry
+           SET source_url=substr(description,
+                                 instr(description,'via ['||source||']('))
+           WHERE instr(description,'via ['||source||'](')>0
+             AND description
+                 GLOB '*(via [[]'||source||'[]](*) [Ss]ur #gcuf[fe]ed[f)]?'
+             AND description
+                 NOT GLOB '*(via [[]'||source||'[]](*)*) sur #gcufeed)?';"
+;            AND description REGEXP '\\(via \\['||source||'\\]\\([^\\)]*\\) ([Ss]ur |via )?#g(cu|uc)f[fe]e?ed[f)]?';"
+          "UPDATE entry
+           SET source_url=substr(source_url,
+                                 instr(source_url,'(')+1,
+                                 instr(source_url,')')-instr(source_url,'(')-1)
+           WHERE source_url IS NOT NULL;"
+          "PRAGMA user_version = 7;")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Database Utilitities
