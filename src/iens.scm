@@ -548,13 +548,19 @@
           (list (car args) (cadr args) (cddr args)))
         (else (assert #f "Unknown type parameter for " (cadr args)))))
 
-(define (add-entry* ctime url notes)
-  (trace `(add-entry ,ctime ,url ,notes))
+(define (add-entry* ctime spec notes)
+  (assert (or (string? spec) (and (list? spec) (= 3 (length spec))))
+          "Bad entry spec " spec)
+  (trace `(add-entry ,ctime ,spec ,notes))
   (let ((new-id
     (with-transaction db
       (lambda ()
-        (exec (sql db "INSERT INTO entry(url,notes,ctime,mtime) VALUES (?,?,?,?);")
-              url notes ctime ctime)
+        (let ((source (if (list? spec) (car   spec) '()))
+              (title  (if (list? spec) (cadr  spec) '()))
+              (url    (if (list? spec) (caddr spec) spec)))
+          (exec (sql db "INSERT INTO entry(url,title,source,notes,ctime,mtime)
+                         VALUES (?,?,?,?,?,?);")
+                url title source notes ctime ctime))
         (let ((new-id (last-insert-rowid db)))
           (exec (sql db "INSERT INTO tagrel SELECT ?,id FROM tag WHERE auto=1;")
                 new-id)
@@ -563,9 +569,20 @@
     (write-line (conc "Added " new-id)))
   (update-feed-cache ctime))
 
+(define (auto-add* spec lines)
+  (cond
+    ((string? spec)
+      (add-entry spec lines))
+    ((and (list? spec) (= 3 (length spec)))
+      (add-entry (caddr spec) lines)
+      (set-source (car spec))
+      (unless (string=? (cadr spec) "")
+        (set-title (cadr spec))))
+    (else (assert #f "Unexpected spec " spec))))
+
 (defcmd (add-entry first second . rest)
   "[timestamp] URL note-line [note-line ...]" "Create a new entry"
-  (if (or (null? rest) (string? first))
+  (if (or (null? rest) (string? first) (list? first))
       (add-entry* (current-seconds)
                   first
                   (apply string-append (map terminate-line (cons second rest))))
@@ -1300,6 +1317,15 @@
 ;;;;;;;;;;;;;
 ;; Auto Add
 
+(define (string-trim s)
+  (cond
+    ((string=? s "") s)
+    ((char=? #\space (string-ref s 0))
+      (string-trim (substring s 1)))
+    ((char=? #\space (string-ref s (sub1 (string-length s))))
+      (string-trim (substring s 0 (sub1 (string-length s)))))
+    (else s)))
+
 (define (auto-add lines)
   (unless arg-replay
     (trace `(auto-add ,lines))
@@ -1314,13 +1340,24 @@
                                (string-length lines)
                                (substring-index " " lines start)
                                (substring-index "\n" lines start))))
-                         #f)))
+                         #f))
+             (s-start (substring-index "[" lines index))
+             (s-end   (if (and s-start (> start s-start))
+                          (substring-index "]" lines s-start)
+                          #f)))
         (cond (start
-                (loop end (cons (substring lines start end) urls)))
+                (loop end
+                      (cons (if (and s-end (> start s-end))
+                                (list
+                                  (substring lines s-start s-end)
+                                  (string-trim (substring lines s-end start))
+                                  (substring lines start sed))
+                                (substring lines start end))
+                            urls)))
               ((null? urls)
                 (write-line (conc "Warning: no URL found")))
               (else
-                (for-each (lambda (url) (add-entry url lines)) urls)))))))
+                (for-each (cut add-entry <> lines) urls)))))))
 
 ;;;;;;;;;;;;;;
 ;; Main loop
