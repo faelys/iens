@@ -762,6 +762,7 @@ END-OF-CSS
                                ELSE 'text' END,
                           trim(description,char(10))||char(10),
                           trim(notes,char(10))||char(10),
+                          title,section,comment_url,
                           stime,?,
                           CASE WHEN mark>=3 THEN ? ELSE NULL END,
                           CASE WHEN mark>=3 THEN 1 ELSE 0 END
