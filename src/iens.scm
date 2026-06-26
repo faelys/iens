@@ -569,17 +569,6 @@
     (write-line (conc "Added " new-id)))
   (update-feed-cache ctime))
 
-(define (auto-add* spec lines)
-  (cond
-    ((string? spec)
-      (add-entry spec lines))
-    ((and (list? spec) (= 3 (length spec)))
-      (add-entry (caddr spec) lines)
-      (set-source (car spec))
-      (unless (string=? (cadr spec) "")
-        (set-title (cadr spec))))
-    (else (assert #f "Unexpected spec " spec))))
-
 (defcmd (add-entry first second . rest)
   "[timestamp] URL note-line [note-line ...]" "Create a new entry"
   (if (or (null? rest) (string? first) (list? first))
