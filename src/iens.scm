@@ -558,9 +558,16 @@
         (let ((source (if (list? spec) (car   spec) '()))
               (title  (if (list? spec) (cadr  spec) '()))
               (url    (if (list? spec) (caddr spec) spec)))
-          (exec (sql db "INSERT INTO entry(url,title,source,notes,ctime,mtime)
-                         VALUES (?,?,?,?,?,?);")
-                url title source notes ctime ctime))
+          (exec (sql db "INSERT INTO entry(url,title,source,source_url,
+                                           notes,ctime,mtime)
+                         VALUES (?,?,?,?,?,?,?);")
+                url
+                title
+                source
+                (if (null? source) '() (comment-link source url))
+                notes
+                ctime
+                ctime))
         (let ((new-id (last-insert-rowid db)))
           (exec (sql db "INSERT INTO tagrel SELECT ?,id FROM tag WHERE auto=1;")
                 new-id)
