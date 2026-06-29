@@ -968,24 +968,21 @@
                        (get-config/default "description-ext" "txt"))))
         (fields
            (query fetch-row
-                  (sql db "SELECT description,notes,url FROM entry WHERE id=?;")
+                  (sql db "SELECT description,notes,url,source,source_url
+                           FROM entry WHERE id=?;")
                   entry-id)))
     (unless (null? fields)
       (call-with-output-file file-name
         (lambda (port)
           (if (or (null? (car fields)) (string=? (car fields) ""))
-            (let* ((s-sec (substring-index "[" (cadr fields)))
-                   (e-sec (if s-sec
-                              (substring-index "]" (cadr fields) s-sec)
-                              #f))
-                   (sect  (if e-sec
-                              (substring (cadr fields) (+ s-sec 1) e-sec) #f))
-                   (comm  (if sect (comment-link sect (caddr fields)) #f)))
+            (begin
               (write-string (conc " + [](" (caddr fields) ")\n") #f port)
-              (when sect
+              (unless (null? (cadddr fields))
                 (write-string
                   (conc "(via "
-                    (if comm (conc "[" sect "](" comm ")") sect)
+                    (if (null? (list-ref fields 4))
+                      (cadddr fields)
+                      (conc "[" (cadddr fields) "](" (list-ref fields 4) ")"))
                     " sur #gcufeed)\n")
                   #f port)))
             (write-string (car fields) #f port))
