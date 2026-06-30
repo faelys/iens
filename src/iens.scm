@@ -1319,6 +1319,12 @@
       (string-trim (substring s 0 (sub1 (string-length s)))))
     (else s)))
 
+(define (get-title url)
+  (let* ((block (with-input-from-request url #f (cut read-string 2048)))
+         (start (substring-index-ci "<title>" block))
+         (end   (if start (substring-index-ci "</title>" block start) #f)))
+    (if end (string-trim (substring block (+ start 7) end)) #f)))
+
 (define (auto-add lines)
   (unless arg-replay
     (trace `(auto-add ,lines))
@@ -1345,7 +1351,9 @@
                                   (substring lines s-start s-end)
                                   (string-trim (substring lines s-end start))
                                   (substring lines start sed))
-                                (substring lines start end))
+                                (let* ((url (substring lines start end))
+                                       (title (get-title url)))
+                                  (if title (list '() title url) url)))
                             urls)))
               ((null? urls)
                 (write-line (conc "Warning: no URL found")))
