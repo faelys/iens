@@ -535,6 +535,9 @@ END-OF-CSS
             (loop (- tid 1))))))
     id))
 
+(define (post-fragment-id id)
+  (if (positive? id) (conc "post-" id) (conc "entry" id)))
+
 (define (post-fragment id mark ptime section title url comm-url tags)
   (let* ((data (case mark
                  ((0)  '("unmarked" "unmarked"  "Mark"    "Delete"))
@@ -547,7 +550,7 @@ END-OF-CSS
          (llabel (caddr data))
          (rlabel (cadddr data)))
   `(form (@ (method "POST") (action ,(conc "do-" action))
-            (id ,(if (positive? id) (conc "post-" id) (conc "entry" id)))
+            (id ,(post-fragment-id id))
             (class ,(conc class "-post"))
             (hx-swap "outerHTML") (hx-post ,(conc "xdo-" action)))
     (input (@ (type "submit") (name "submit") (class lsub) (value ,llabel)))
@@ -616,23 +619,38 @@ END-OF-CSS
 
 (define (new-fragment)
   (catch-up)
-  (let* ((last-id (string->number (required-input-var "last-id")))
+  (let* ((last-id   (string->number (required-input-var "last-id")))
+         (last-time (string->number (required-input-var "last-time")))
          (frags (query
-                  (map-rows* post-fragment)
+                  (map-rows*
+                    (lambda (id mark ptime section title url comm-url tags)
+                      (let ((base (post-fragment id mark ptime section
+                                                 title url comm-url tags)))
+                        (cond
+                          ((> id last-id) base)
+                          ((>= mark -5)
+                            `(form (@ (hx-swap-oob "true") ,@(cdadr base))
+                                   ,@(cddr base)))
+                          (else
+                            `(form (@ (hx-swap-oob "delete")
+                                      (id ,(post-fragment-id id)))
+                                   ""))))))
                   (sql db "SELECT gruik.id,mark,ptime,section,title,url,
                                   comment_url,group_concat('#'||name,' ')
                            FROM gruik LEFT OUTER JOIN gruik_tags
                                                       ON gruik_id=gruik.id
                                       LEFT OUTER JOIN tag ON tag_id=tag.id
-                           WHERE gruik.id > ? AND mark >= -5
+                           WHERE mtime > ? AND (gruik.id <= ? OR mark >= -5)
                            GROUP BY gruik.id;")
-                  last-id))
+                  last-time last-id))
          (btn (if (null? frags) "Recheck" "More")))
   (htmx-output
     `(,@frags
         (form (@ (method GET) (action "new") (id "load-new")
                  (hx-swap "outerHTML")  (hx-post "x-new"))
           ,(spinner)
+          (input (@ (type "hidden") (name "last-time")
+                    (value ,(current-seconds))))
           (input (@ (type "hidden") (name "last-id") (value
             ,(query fetch-value (sql db "SELECT MAX(id) FROM gruik;")))))
           (input (@ (type "submit") (name "submit") (value ,btn))))
@@ -690,6 +708,8 @@ END-OF-CSS
     `((form (@ (method GET) (action "new") (id "load-new")
                (hx-swap "outerHTML")  (hx-post "x-new"))
         ,(spinner)
+        (input (@ (type "hidden") (name "last-time")
+                  (value ,(current-seconds))))
         (input (@ (type "hidden") (name "last-id") (value
           ,(query fetch-value (sql db "SELECT MAX(id) FROM gruik;")))))
         (input (@ (type "submit") (name "submit") (value "Load")))))
