@@ -401,14 +401,16 @@ END-OF-CSS
     (animate (@ (attributeName y) (begin ,beg) (dur "1s")
                 (values "10;15;20;25;30;35;40;45;50;0;10")
                 (calcMode linear) (repeatCount indefinite)))))
-(define (spinner)
-  `(svg (@ (width 16) (height 16) (class spinner)
-           (viewBox "0 0 135 140") (xmlns "http://www.w3.org/2000/svg"))
-    ,(spinner-bar   0 10 120 "0.5s")
-    ,(spinner-bar  30 10 120 "0.25s")
-    ,(spinner-bar  60  0 140 "0s")
-    ,(spinner-bar  90 10 120 "0.25s")
-    ,(spinner-bar 120 10 120 "0.5s")))
+(define (spinner-symbol)
+  `(svg (@ (style "display: none") (xmlns "http://www.w3.org/2000/svg"))
+    (symbol (@ (id "spinner") (viewBox "0 0 135 140"))
+      ,(spinner-bar   0 10 120 "0.5s")
+      ,(spinner-bar  30 10 120 "0.25s")
+      ,(spinner-bar  60  0 140 "0s")
+      ,(spinner-bar  90 10 120 "0.25s")
+      ,(spinner-bar 120 10 120 "0.5s"))))
+(define (spinner-ref)
+  `(svg (@ (class spinner)) (use (@ (href "#spinner")) "")))
 
 (define (post-p-fragment id ptime section title url comm-url tags)
   `(p
@@ -606,7 +608,9 @@ END-OF-CSS
         (title ,title)
         (script (@ (src "https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js")) "")
         (style ,css-style))
-      (body (h1 ,title)
+      (body
+        ,(spinner-symbol)
+        (h1 ,title)
         (nav (ul
           (li (a (@ (href "./")) "Latest gruiks"))
           (li (a (@ (href "deleted")) "Deleted gruiks"))
@@ -648,7 +652,7 @@ END-OF-CSS
     `(,@frags
         (form (@ (method GET) (action "new") (id "load-new")
                  (hx-swap "outerHTML")  (hx-post "x-new"))
-          ,(spinner)
+          ,(spinner-ref)
           (input (@ (type "hidden") (name "last-time")
                     (value ,(current-seconds))))
           (input (@ (type "hidden") (name "last-id") (value
@@ -683,7 +687,9 @@ END-OF-CSS
           (title ,title)
           (script (@ (src "https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js")) "")
           (style ,css-style))
-        (body (h1 ,title)
+        (body
+          ,(spinner-symbol)
+          (h1 ,title)
           ,@(edit-post-fragment* id))))))
 
 (define (feed-view id)
@@ -707,7 +713,7 @@ END-OF-CSS
     post-fragment
     `((form (@ (method GET) (action "new") (id "load-new")
                (hx-swap "outerHTML")  (hx-post "x-new"))
-        ,(spinner)
+        ,(spinner-ref)
         (input (@ (type "hidden") (name "last-time")
                   (value ,(current-seconds))))
         (input (@ (type "hidden") (name "last-id") (value
@@ -1059,9 +1065,6 @@ END-OF-CSS
               (_  (is #\=))
               (q  url-value))
     (result (lambda () (view-url-search op q)))))
-(define route-spinner
-  (preceded-by (char-seq "spinner")
-               (result (lambda () (htmx-output (spinner))))))
 (define route-edit
   (sequence* ((_  (char-seq "gruik/"))
               (id (as-string (one-or-more irc-digit))))
@@ -1090,7 +1093,6 @@ END-OF-CSS
                          route-ok
                          route-new
                          route-no-comm
-                         route-spinner
                          route-url-search
                          route-x-new)))))
 
