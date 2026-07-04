@@ -625,17 +625,24 @@ END-OF-CSS
   (catch-up)
   (let* ((last-id   (string->number (required-input-var "last-id")))
          (last-time (string->number (required-input-var "last-time")))
+         (n-new     0)
+         (n-upd     0)
+         (n-del     0)
          (frags (query
                   (map-rows*
                     (lambda (id mark ptime section title url comm-url tags)
                       (let ((base (post-fragment id mark ptime section
                                                  title url comm-url tags)))
                         (cond
-                          ((> id last-id) base)
+                          ((> id last-id)
+                            (set! n-new (add1 n-new))
+                            base)
                           ((>= mark -5)
+                            (set! n-upd (add1 n-upd))
                             `(form (@ (hx-swap-oob "true") ,@(cdadr base))
                                    ,@(cddr base)))
                           (else
+                            (set! n-del (add1 n-del))
                             `(form (@ (hx-swap-oob "delete")
                                       (id ,(post-fragment-id id)))
                                    ""))))))
@@ -652,6 +659,11 @@ END-OF-CSS
     `(,@frags
         (form (@ (method GET) (action "new") (id "load-new")
                  (hx-swap "outerHTML")  (hx-post "x-new"))
+          ,@(if (positive? (+ n-new n-upd n-del))
+              `((p ,(if (positive? n-new) (conc "+" n-new) "")
+                   ,(if (positive? n-upd) (conc "~" n-upd) "")
+                   ,(if (positive? n-del) (conc "−" n-del) "")))
+              '())
           ,(spinner-ref)
           (input (@ (type "hidden") (name "last-time")
                     (value ,(current-seconds))))
