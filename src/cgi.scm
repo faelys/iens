@@ -40,10 +40,17 @@ pre { overflow: auto; }
 .protected-post { background: #cfc; }
 .detailed-post { margin: 1rex; padding: 0.5rex; }
 form {
+  position: relative;
   margin: 1rex 0;
   display: grid;
   gap: 0.5rex;
   transition: all 0.5s ease-in;
+}
+.sidenote {
+  position: absolute;
+  top: 1ex; right: 1ex;
+  margin: 0;
+  opacity: 0.6;
 }
 .lsub { width: 4.5rem; height: 3rem; }
 .rsub { width: 4.5rem; height: 3rem; }
@@ -660,7 +667,8 @@ END-OF-CSS
         (form (@ (method GET) (action "new") (id "load-new")
                  (hx-swap "outerHTML")  (hx-post "x-new"))
           ,@(if (positive? (+ n-new n-upd n-del))
-              `((p ,(if (positive? n-new) (conc "+" n-new) "")
+              `((p (@ (class sidenote))
+                   ,(if (positive? n-new) (conc "+" n-new) "")
                    ,(if (positive? n-upd) (conc "~" n-upd) "")
                    ,(if (positive? n-del) (conc "−" n-del) "")))
               '())
