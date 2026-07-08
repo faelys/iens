@@ -458,11 +458,16 @@ END-OF-CSS
            '()))
       (p (label "URL:"
         (input (@ (type "url") (name "url") (value ,url)))))
-      (p ,(conc "Mark: " mark)
-        (label (input (@ (type radio) (name mark) (value 0))) "Unmark")
-        (label (input (@ (type radio) (name mark) (value 1) (checked))) "Keep")
-        (label (input (@ (type radio) (name mark) (value 2))) "Lock")
-        (label (input (@ (type radio) (name mark) (value 3))) "Protect"))
+      ,(if (positive? id)
+        `(p ,(conc "Mark: " mark)
+          (label (input (@ (type radio) (name mark) (value 0))) "Unmark")
+          (label (input (@ (type radio) (name mark) (value 1) (checked)))
+                 "Keep")
+          (label (input (@ (type radio) (name mark) (value 2))) "Lock")
+          (label (input (@ (type radio) (name mark) (value 3))) "Protect"))
+        `(p (label "Protected: "
+              (input (@ (type checkbox) (name protected) (value yes)
+                        ,@(if (zero? mark) '() '((checked))))))))
       (pre (code ,notes))
       ,@(if (null? comm-url)
             `((p (label (input (@ (type checkbox) (name retry-comm) (value y)))
@@ -483,20 +488,39 @@ END-OF-CSS
                     (input (@ (type checkbox) (name tags) (value ,tid)
                       ,@(if (= 0 checked) '() '((checked)))))
                     ,name)))
-              (sql db "SELECT id,name,EXISTS (SELECT * FROM gruik_tags WHERE gruik_id=? AND tag_id = tag.id) FROM tag;")
-              id))))
+              (sql db
+                (if (positive? id)
+                    "SELECT id,name,
+                            EXISTS (SELECT * FROM gruik_tags
+                                    WHERE gruik_id=? AND tag_id = tag.id)
+                     FROM tag;"
+                    "SELECT id,name,
+                            EXISTS (SELECT * FROM tagrel
+                                    WHERE url_id=? AND tag_id = tag.id)
+                     FROM tag;"))
+              (abs id)))))
     (input (@ (type "hidden") (name "id") (value ,id)))
     (input (@ (type "submit") (name "submit") (class rsub) (value "Cancel")))))
 
 (define (edit-post-fragment* id)
   (query
     (map-rows* edit-post-fragment)
-    (sql db "SELECT gruik.id,ptime,section,title,url,comment_url,mark,
-                    notes,description,group_concat('#'||name,' ')
-             FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
-                        LEFT OUTER JOIN tag ON tag_id=tag.id
-             WHERE mark=1 AND gruik.id=? GROUP BY gruik.id;")
-    id))
+    (sql db
+      (if (positive? id)
+          "SELECT gruik.id,ptime,section,title,url,comment_url,mark,
+                  notes,description,group_concat('#'||name,' ')
+           FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
+                      LEFT OUTER JOIN tag ON tag_id=tag.id
+           WHERE mark=1 AND gruik.id=? GROUP BY gruik.id;"
+          "SELECT -entry.id,
+                  strftime('%Y.%m.%d %H:%M:%S', ctime, 'unixepoch') AS ptime,
+                  COALESCE(source, 'Untracked Ien'),
+                  COALESCE(title, ''), url, source_url, protected,
+                  notes, description, group_concat('#'||name, ' ')
+           FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
+                      LEFT OUTER JOIN tag ON tag_id=tag.id
+           WHERE entry.id=? GROUP BY url_id;"))
+    (abs id)))
 
 (define (db-edit)
   (let ((id         (string->number (required-input-var "id")))
@@ -696,7 +720,7 @@ END-OF-CSS
      WHERE mark < 0 GROUP BY gruik.id ORDER BY mtime DESC;"))
 
 (define (edit-view id)
-  (let ((title (conc "Gruik #" id)))
+  (let ((title (conc (if (positive? id) "Gruik #" "Ien #") (abs id))))
     (html-output
       `(html
         (head
@@ -1085,10 +1109,14 @@ END-OF-CSS
               (_  (is #\=))
               (q  url-value))
     (result (lambda () (view-url-search op q)))))
-(define route-edit
+(define route-edit-gruik
   (sequence* ((_  (char-seq "gruik/"))
               (id (as-string (one-or-more irc-digit))))
     (result (lambda () (edit-view (string->number id))))))
+(define route-edit-ien
+  (sequence* ((_  (char-seq "ien/"))
+              (id (as-string (one-or-more irc-digit))))
+    (result (lambda () (edit-view (- (string->number id)))))))
 (define route-main (result main-view))
 (define route-ok
   (preceded-by (char-seq "ok")
@@ -1107,7 +1135,8 @@ END-OF-CSS
                          route-domain-search
                          route-xdo-edit
                          route-deleted
-                         route-edit
+                         route-edit-gruik
+                         route-edit-ien
                          route-feed
                          route-main
                          route-ok
