@@ -365,29 +365,45 @@ END-OF-CSS
 
 (define (auto-descr id)
   (let ((row (query fetch-row
-                    (sql db "SELECT section,url FROM gruik
-                             WHERE id=? AND COALESCE(description,'')='';")
-                    id)))
+                    (sql db
+                      (if (positive? id)
+                          "SELECT section,url FROM gruik
+                           WHERE id=? AND COALESCE(description,'')='';"
+                          "SELECT source,url FROM entry
+                           WHERE protected=0 AND id=?
+                             AND COALESCE(description,'')='';"))
+                    (abs id))))
     (unless (null? row)
       (let ((section (car row))
             (url     (cadr row))
             (comm    (apply comment-link row)))
         (if comm
           (exec
-            (sql db "UPDATE gruik
-                     SET description=?,
-                         notes=trim(notes||char(10)||?,char(10)),
-                         comment_url=?
-                     WHERE id=? AND COALESCE(description,'')='';")
+            (sql db
+              (if (positive? id)
+                "UPDATE gruik
+                 SET description=?,
+                     notes=trim(notes||char(10)||?,char(10)),
+                     comment_url=?
+                 WHERE id=? AND COALESCE(description,'')='';"
+                "UPDATE entry
+                 SET description=?,
+                     notes=trim(notes||char(10)||?,char(10)),
+                     source_url=?
+                 WHERE protected=0 AND id=? AND COALESCE(description,'')='';"))
             (conc " + [](" url ")\n(via [" section "](" comm ") sur #gcufeed)")
             comm
             comm
-            id)
+            (abs id))
           (exec
-            (sql db "UPDATE gruik SET description=?
-                     WHERE id=? AND COALESCE(description,'')='';")
+            (sql db
+              (if (positive? id)
+                "UPDATE gruik SET description=?
+                 WHERE id=? AND COALESCE(description,'')='';"
+                "UPDATE entry SET description=?
+                 WHERE protected=0 AND id=? AND COALESCE(description,'')='';"))
             (conc " + [](" url ")\n(via " section " sur #gcufeed)")
-            id))))))
+            (abs id)))))))
 
 (define (output-log-counts)
   (let ((ne (query fetch-value
@@ -530,20 +546,37 @@ END-OF-CSS
     (when (string=? "Edit" (required-input-var "submit"))
       (exec
         (sql/transient db
-          "UPDATE gruik SET mtime=?,notes=trim(notes||char(10)||?,char(10)),
-                            description=?,mark=?,comment_url=?,
-                            url=COALESCE(?,url)
-           WHERE mark=1 AND id=?;")
+          (if (positive? id)
+            "UPDATE gruik SET mtime=?,notes=trim(notes||char(10)||?,char(10)),
+                              description=?,mark=?,comment_url=?,
+                              url=COALESCE(?,url)
+             WHERE mark=1 AND id=?;"
+            "UPDATE entry SET mtime=?,notes=trim(notes||char(10)||?,char(10)),
+                              description=?,protected=?,source_url=?,
+                              url=COALESCE(?,url)
+             WHERE protected=0 AND id=?;"))
         (current-seconds)
         (required-input-var "notes")
         (if retry-comm "" (required-input-var "description"))
-        (string->number (required-input-var "mark"))
+        (if (positive? id) (string->number (required-input-var "mark")) 0)
         (if (and comm-url (not (string=? comm-url ""))) comm-url '())
         (if (and main-url (not (string=? main-url ""))) main-url '())
-        id)
+        (abs id))
       (when retry-comm (auto-descr id))
-      (let* ((n-tags (query fetch-value (sql db "SELECT MAX(id) FROM tag")))
-             (tags   (make-vector (+ 1 n-tags) 0)))
+      (let* ((n-tags  (query fetch-value (sql db "SELECT MAX(id) FROM tag")))
+             (tags    (make-vector (+ 1 n-tags) 0))
+             (add-tag (sql db
+                        (if (positive? id)
+                          "INSERT INTO gruik_tags(gruik_id,tag_id)
+                           VALUES (?,?);"
+                          "INSERT INTO tagrel(url_id,tag_id)
+                           VALUES (?,?);")))
+             (del-tag (sql db
+                        (if (positive? id)
+                          "DELETE FROM gruik_tags
+                           WHERE gruik_id=? AND tag_id=?;"
+                          "DELETE FROM tagrel
+                           WHERE url_id=? AND tag_id=?;"))))
         (let loop ((var input-list))
           (unless (null? var)
             (when (string=? (caar var) "tags")
@@ -552,19 +585,16 @@ END-OF-CSS
         (query
           (for-each-row*
             (lambda (tid) (vector-set! tags tid (- (vector-ref tags tid) 1))))
-          (sql db "SELECT tag_id FROM gruik_tags WHERE gruik_id=?;")
-          id)
+          (sql db
+            (if (positive? id)
+              "SELECT tag_id FROM gruik_tags WHERE gruik_id=?;"
+              "SELECT tag_id FROM tagrel WHERE url_id=?;"))
+          (abs id))
         (let loop ((tid n-tags))
           (unless (= 0 tid)
             (case (vector-ref tags tid)
-              ((1)
-                (exec
-                  (sql db "INSERT INTO gruik_tags(gruik_id,tag_id) VALUES (?,?);")
-                  id tid))
-              ((-1)
-                (exec
-                  (sql db "DELETE FROM gruik_tags WHERE gruik_id=? AND tag_id=?;")
-                  id tid)))
+              ((1)  (exec add-tag (abs id) tid))
+              ((-1) (exec del-tag (abs id) tid)))
             (loop (- tid 1))))))
     id))
 
@@ -1048,7 +1078,7 @@ END-OF-CSS
       (else (bad-input "bad value for submit")))))
 
 (define (do-unmarked htmx?)
-  (let ((id     (required-input-var "id"))
+  (let ((id     (string->number (required-input-var "id")))
         (submit (required-input-var "submit")))
     (cond
       ((string=? submit "Mark")
@@ -1062,7 +1092,9 @@ END-OF-CSS
       (else (bad-input "bad value for submit")))))
 
 (define route-xdo-edit
-  (preceded-by (char-seq "xdo-edit")
+  (preceded-by (any-of (char-seq "xdo-edit")
+                       (char-seq "gruik/xdo-edit")
+                       (char-seq "ien/xdo-edit"))
                (result xdo-edit)))
 (define route-do-locked
   (sequence* ((x? (maybe (is #\x)))
