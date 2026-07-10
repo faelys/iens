@@ -845,42 +845,41 @@ END-OF-CSS
            WHERE url " op " ? GROUP BY gruik.id;")
     q))
 
-(define (db-push-gruik str-id)
-  (let ((id (string->number str-id)))
-    (with-transaction db
-      (lambda ()
-        (exec
-          (sql db "INSERT INTO entry(url,type,description,notes,
-                                     title,source,source_url,
-                                     ctime,mtime,ptime,protected)
-                   SELECT url,
-                          CASE WHEN description IS NULL THEN NULL
-                               WHEN substr(description,1,1)='<' THEN 'html'
-                               WHEN substr(description,1,3)=' - '
-                                 OR substr(description,1,3)=' + '
-                                               THEN 'markdown-li'
-                               ELSE 'text' END,
-                          trim(description,char(10))||char(10),
-                          trim(notes,char(10))||char(10),
-                          title,section,comment_url,
-                          stime,?,
-                          CASE WHEN mark>=3 THEN ? ELSE NULL END,
-                          CASE WHEN mark>=3 THEN 1 ELSE 0 END
-                   FROM gruik
-                   WHERE id=?;")
-          (current-seconds)
-          (current-seconds)
-          id)
-        (exec
-          (sql db "INSERT OR IGNORE INTO tagrel(url_id,tag_id)
-                   SELECT entry.id,tag_id
-                   FROM gruik_tags LEFT OUTER JOIN gruik ON gruik_id=gruik.id
-                                   LEFT OUTER JOIN entry ON gruik.url=entry.url
-                   WHERE gruik_id=?;")
-          id)
-        (db-set-mark id 2 -10)
-        (db-set-mark id 3 -10)))
-    (log-counts)))
+(define (db-push-gruik id)
+  (with-transaction db
+    (lambda ()
+      (exec
+        (sql db "INSERT INTO entry(url,type,description,notes,
+                                   title,source,source_url,
+                                   ctime,mtime,ptime,protected)
+                 SELECT url,
+                        CASE WHEN description IS NULL THEN NULL
+                             WHEN substr(description,1,1)='<' THEN 'html'
+                             WHEN substr(description,1,3)=' - '
+                               OR substr(description,1,3)=' + '
+                                             THEN 'markdown-li'
+                             ELSE 'text' END,
+                        trim(description,char(10))||char(10),
+                        trim(notes,char(10))||char(10),
+                        title,section,comment_url,
+                        stime,?,
+                        CASE WHEN mark>=3 THEN ? ELSE NULL END,
+                        CASE WHEN mark>=3 THEN 1 ELSE 0 END
+                 FROM gruik
+                 WHERE id=?;")
+        (current-seconds)
+        (current-seconds)
+        id)
+      (exec
+        (sql db "INSERT OR IGNORE INTO tagrel(url_id,tag_id)
+                 SELECT entry.id,tag_id
+                 FROM gruik_tags LEFT OUTER JOIN gruik ON gruik_id=gruik.id
+                                 LEFT OUTER JOIN entry ON gruik.url=entry.url
+                 WHERE gruik_id=?;")
+        id)
+      (db-set-mark id 2 -10)
+      (db-set-mark id 3 -10)))
+  (log-counts))
 
 (define (db-set-mark id old-v new-v)
   (exec (sql db "UPDATE gruik SET mtime=?, mark=?, stime=COALESCE(stime,?)
@@ -1033,7 +1032,7 @@ END-OF-CSS
     (post-htmx id)))
 
 (define (do-locked htmx?)
-  (let ((id     (required-input-var "id"))
+  (let ((id     (string->number (required-input-var "id")))
         (submit (required-input-var "submit")))
     (cond
       ((string=? submit "Push")
@@ -1045,11 +1044,11 @@ END-OF-CSS
       (else (bad-input "bad value for submit")))))
 
 (define (do-marked htmx?)
-  (let ((id     (required-input-var "id"))
+  (let ((id     (string->number (required-input-var "id")))
         (submit (required-input-var "submit")))
     (cond
       ((string=? submit "Edit")
-        (if htmx? (htmx-output (edit-post-fragment* (string->number id)))
+        (if htmx? (htmx-output (edit-post-fragment* id))
                   (redirect (conc "/gruik/" id))))
       ((string=? submit "Unmark")
         (db-set-mark id 1 0)
@@ -1058,7 +1057,7 @@ END-OF-CSS
       (else (bad-input "bad value for submit")))))
 
 (define (do-undelete htmx?)
-  (let ((id      (required-input-var "id"))
+  (let ((id      (string->number (required-input-var "id")))
         (oldmark (string->number (optional-input-var "from" "")))
         (submit  (required-input-var "submit")))
     (cond
