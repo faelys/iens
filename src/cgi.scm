@@ -651,12 +651,22 @@ END-OF-CSS
   (htmx-output
     (query
       (map-rows* post-fragment)
-      (sql db "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
-                      group_concat('#'||name,' ')
-               FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
-                          LEFT OUTER JOIN tag ON tag_id=tag.id
-               WHERE gruik.id=? GROUP BY gruik.id;")
-      id)))
+      (sql db
+        (if (positive? id)
+          "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
+                  group_concat('#'||name,' ')
+           FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
+                      LEFT OUTER JOIN tag ON tag_id=tag.id
+           WHERE gruik.id=? GROUP BY gruik.id;"
+          "SELECT -entry.id,(CASE WHEN protected=0 THEN 2 ELSE 3 END),
+                  strftime('%Y.%m.%d %H:%M:%S',ctime,'unixepoch') AS ptime,
+                  COALESCE(source,'Untracked Ien'),
+                  COALESCE(title,''),url,source_url,
+                  group_concat('#'||name,' ')
+           FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
+                      LEFT OUTER JOIN tag ON tag_id=tag.id
+           WHERE entry.id=? GROUP BY entry.id;"))
+      (abs id))))
 
 (define (gruik-list-view title row->fragment footer q . args)
   (html-output
