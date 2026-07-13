@@ -672,6 +672,7 @@ END-OF-CSS
   (html-output
     `(html
       (head
+        (base (@ (href ,(conc (get-config/default "gruik-prefix" "") "/"))))
         (meta (@ (charset "utf-8")))
         (meta (@ (name "viewport")
                  (content "width=device-width, initial-scale=1")))
@@ -764,6 +765,7 @@ END-OF-CSS
     (html-output
       `(html
         (head
+          (base (@ (href ,(conc (get-config/default "gruik-prefix" "") "/"))))
           (meta (@ (charset "utf-8")))
           (meta (@ (name "viewport")
                    (content "width=device-width, initial-scale=1")))
