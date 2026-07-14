@@ -636,15 +636,7 @@ END-OF-CSS
                               ((3)  "protected-post")
                               (else "bad-post"))
                    "detailed-post"))
-    (p
-      (span (@ (class "ptime") (title ,id)) ,ptime)
-      ,(if (null? comm-url)
-           `(span (@ (class "section")) ,section)
-           `(a (@ (href ,comm-url) (class "section")) ,section))
-      ,@(if (or (null? tags) (string=? tags "")) '()
-           `((span (@ (class "taglist")) ,tags)))
-      (span (@ (class "title")) ,(if (null? title) "" title))
-      (a (@ (href ,url)) ,url))
+    ,(post-p-fragment id ptime section title url comm-url tags)
     (pre (code ,description))))
 
 (define (post-htmx id)
