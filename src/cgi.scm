@@ -38,7 +38,6 @@ pre { overflow: auto; }
 .marked-post { background: #ccf; }
 .locked-post { background: #cff; }
 .protected-post { background: #cfc; }
-.detailed-post { margin: 1rex; padding: 0.5rex; }
 form {
   position: relative;
   margin: 1rex 0;
@@ -601,7 +600,7 @@ END-OF-CSS
 (define (post-fragment-id id)
   (if (positive? id) (conc "post-" id) (conc "entry" id)))
 
-(define (post-fragment id mark ptime section title url comm-url tags)
+(define (post-fragment id mark ptime section title url comm-url tags . details)
   (let* ((data (case mark
                  ((0)  '("unmarked" "unmarked"  "Mark"    "Delete"))
                  ((1)  '("marked"   "marked"    "Edit"    "Unmark"))
@@ -616,28 +615,24 @@ END-OF-CSS
             (id ,(post-fragment-id id))
             (class ,(conc class "-post"))
             (hx-swap "outerHTML") (hx-post ,(conc "xdo-" action)))
-    (input (@ (type "submit") (name "submit") (class lsub) (value ,llabel)))
-    (div (@ (class "form-body"))
-      ,(post-p-fragment id ptime section title url comm-url tags))
-    (input (@ (type "hidden") (name "id") (value ,id)))
-    ,@(if (<= -5 mark -1)
-          `((input (@ (type "hidden") (name "from") (value ,mark))))
-          '())
-    ,@(if (<= -5 mark  3)
+    ,@(if (positive? id)
           `((input (@ (type "submit") (name "submit")
-                      (class rsub) (value ,rlabel))))
+                      (class lsub) (value ,llabel))))
+          '())
+    (div (@ (class "form-body"))
+      ,(post-p-fragment id ptime section title url comm-url tags)
+      ,@(if (or (null? details) (string=? (car details) ""))
+            '() `((pre (code ,(car details))))))
+    ,@(if (positive? id)
+          `((input (@ (type "hidden") (name "id") (value ,id)))
+            ,@(if (<= -5 mark -1)
+                  `((input (@ (type "hidden") (name "from") (value ,mark))))
+                  '())
+            ,@(if (<= -5 mark  3)
+                  `((input (@ (type "submit") (name "submit")
+                              (class rsub) (value ,rlabel))))
+                  '()))
           '()))))
-
-(define (detailed-post-fragment id mark ptime section title url comm-url
-                                tags description)
-  `(div (@ (class ,(case mark ((0)  "unmarked-post")
-                              ((1)  "marked-post")
-                              ((2)  "locked-post")
-                              ((3)  "protected-post")
-                              (else "bad-post"))
-                   "detailed-post"))
-    ,(post-p-fragment id ptime section title url comm-url tags)
-    (pre (code ,description))))
 
 (define (post-htmx id)
   (htmx-output
@@ -806,7 +801,7 @@ END-OF-CSS
 (define (view-domain-search q)
   (gruik-list-view
     (conc "Domain " q)
-    detailed-post-fragment
+    post-fragment
     '()
     "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
             group_concat('#'||name,' '),COALESCE(description,notes)
@@ -840,7 +835,7 @@ END-OF-CSS
 (define (view-url-search op q)
   (gruik-list-view
     (conc "Gruks " op " " q)
-    detailed-post-fragment
+    post-fragment
     '()
     (conc "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
                   group_concat('#'||name,' '),COALESCE(description,notes)
