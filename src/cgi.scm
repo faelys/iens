@@ -606,7 +606,10 @@ END-OF-CSS
                  ((1)  '("marked"   "marked"    "Edit"    "Unmark"))
                  ((2)  '("locked"   "locked"    "Push"    "Unlock"))
                  ((3)  '("locked"   "protected" "Push"    "Unlock"))
-                 (else '("undelete" "bad"       "Restore" "Hide"))))
+                 ((10) '("TODO"     "locked"    #f        #f))
+                 ((11) '("TODO"     "protected" #f        #f))
+                 (else `("undelete" "bad"       "Restore" ,(if (<= -5 mark 0)
+                                                              "Hide" #f)))))
          (action (car data))
          (class  (cadr data))
          (llabel (caddr data))
@@ -615,7 +618,7 @@ END-OF-CSS
             (id ,(post-fragment-id id))
             (class ,(conc class "-post"))
             (hx-swap "outerHTML") (hx-post ,(conc "xdo-" action)))
-    ,@(if (positive? id)
+    ,@(if llabel
           `((input (@ (type "submit") (name "submit")
                       (class lsub) (value ,llabel))))
           '())
@@ -623,15 +626,13 @@ END-OF-CSS
       ,(post-p-fragment id ptime section title url comm-url tags)
       ,@(if (or (null? details) (string=? (car details) ""))
             '() `((pre (code ,(car details))))))
-    ,@(if (positive? id)
+    ,@(if rlabel
           `((input (@ (type "hidden") (name "id") (value ,id)))
             ,@(if (<= -5 mark -1)
                   `((input (@ (type "hidden") (name "from") (value ,mark))))
                   '())
-            ,@(if (<= -5 mark  3)
-                  `((input (@ (type "submit") (name "submit")
-                              (class rsub) (value ,rlabel))))
-                  '()))
+            (input (@ (type "submit") (name "submit")
+                      (class rsub) (value ,rlabel))))
           '()))))
 
 (define (post-htmx id)
@@ -645,7 +646,7 @@ END-OF-CSS
            FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
                       LEFT OUTER JOIN tag ON tag_id=tag.id
            WHERE gruik.id=? GROUP BY gruik.id;"
-          "SELECT -entry.id,(CASE WHEN protected=0 THEN 2 ELSE 3 END),
+          "SELECT -entry.id,(CASE WHEN protected=0 THEN 10 ELSE 11 END),
                   strftime('%Y.%m.%d %H:%M:%S',ctime,'unixepoch') AS ptime,
                   COALESCE(source,'Untracked Ien'),
                   COALESCE(title,''),url,source_url,
@@ -809,7 +810,7 @@ END-OF-CSS
                 LEFT OUTER JOIN tag ON tag_id=tag.id
      WHERE instr(url,?1)>0 GROUP BY gruik.id
      UNION ALL
-     SELECT -entry.id,(CASE WHEN protected=0 THEN 2 ELSE 3 END),
+     SELECT -entry.id,(CASE WHEN protected=0 THEN 10 ELSE 11 END),
             strftime('%Y.%m.%d %H:%M:%S',ctime,'unixepoch') AS ptime,
             COALESCE(source,'Untracked Ien'),
             COALESCE(title,''),url,source_url,
