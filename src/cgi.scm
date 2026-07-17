@@ -606,7 +606,7 @@ END-OF-CSS
                  ((1)  '("marked"   "marked"    "Edit"    "Unmark"))
                  ((2)  '("locked"   "locked"    "Push"    "Unlock"))
                  ((3)  '("locked"   "protected" "Push"    "Unlock"))
-                 ((10) '("TODO"     "locked"    #f        #f))
+                 ((10) '("ien"      "locked"    "Edit"    #f))
                  ((11) '("TODO"     "protected" #f        #f))
                  (else `("undelete" "bad"       "Restore" ,(if (<= -5 mark 0)
                                                               "Hide" #f)))))
@@ -1031,6 +1031,16 @@ END-OF-CSS
   (let ((id (db-edit)))
     (post-htmx id)))
 
+(define (do-ien htmx?)
+  (let ((id     (string->number (required-input-var "id")))
+        (submit (required-input-var "submit")))
+    (cond
+      ((positive? id) (bad-input "bad value for id"))
+      ((string=? submit "Edit")
+        (if htmx? (htmx-output (edit-post-fragment* id))
+                  (redirect (conc "/ien/" (- id)))))
+      (else (bad-input "bad value for submit")))))
+
 (define (do-locked htmx?)
   (let ((id     (string->number (required-input-var "id")))
         (submit (required-input-var "submit")))
@@ -1095,6 +1105,10 @@ END-OF-CSS
                        (char-seq "gruik/xdo-edit")
                        (char-seq "ien/xdo-edit"))
                (result xdo-edit)))
+(define route-do-ien
+  (sequence* ((x? (maybe (is #\x)))
+              (_  (char-seq "do-ien")))
+    (result (lambda () (do-ien x?)))))
 (define route-do-locked
   (sequence* ((x? (maybe (is #\x)))
               (_  (char-seq "do-locked")))
@@ -1159,7 +1173,8 @@ END-OF-CSS
                (is #\/)
                (apply any-of
                  (map (lambda (p) (followed-by p end-of-input))
-                   (list route-do-locked
+                   (list route-do-ien
+                         route-do-locked
                          route-do-marked
                          route-do-undelete
                          route-do-unmarked
