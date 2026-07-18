@@ -618,6 +618,9 @@ END-OF-CSS
             (id ,(post-fragment-id id))
             (class ,(conc class "-post"))
             (hx-swap "outerHTML") (hx-post ,(conc "xdo-" action)))
+    ,@(if (or llabel rlabel)
+          `((input (@ (type "hidden") (name "id") (value ,id))))
+          '())
     ,@(if llabel
           `((input (@ (type "submit") (name "submit")
                       (class lsub) (value ,llabel))))
@@ -627,8 +630,7 @@ END-OF-CSS
       ,@(if (or (null? details) (string=? (car details) ""))
             '() `((pre (code ,(car details))))))
     ,@(if rlabel
-          `((input (@ (type "hidden") (name "id") (value ,id)))
-            ,@(if (<= -5 mark -1)
+          `(,@(if (<= -5 mark -1)
                   `((input (@ (type "hidden") (name "from") (value ,mark))))
                   '())
             (input (@ (type "submit") (name "submit")
