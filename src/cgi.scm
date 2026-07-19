@@ -606,8 +606,8 @@ END-OF-CSS
                  ((1)  '("marked"   "marked"    "Edit"    "Unmark"))
                  ((2)  '("locked"   "locked"    "Push"    "Unlock"))
                  ((3)  '("locked"   "protected" "Push"    "Unlock"))
-                 ((10) '("ien"      "locked"    "Edit"    #f))
-                 ((11) '("TODO"     "protected" #f        #f))
+                 ((10) '("ien"      "locked"    "Protect" "Edit"))
+                 ((11) '("ien"      "protected" #f        "Unprotect"))
                  (else `("undelete" "bad"       "Restore" ,(if (<= -5 mark 0)
                                                               "Hide" #f)))))
          (action (car data))
@@ -892,6 +892,14 @@ END-OF-CSS
         old-v
         id))
 
+(define (db-set-protected id old-p new-p)
+  (exec (sql db "UPDATE entry SET mtime=?, protected=?
+                 WHERE protected=? AND id=?;")
+        (current-seconds)
+        new-p
+        old-p
+        (- id)))
+
 (define (db-sel-count id text name)
   (list id text name
     (query fetch-value
@@ -1040,6 +1048,14 @@ END-OF-CSS
       ((positive? id) (bad-input "bad value for id"))
       ((string=? submit "Edit")
         (if htmx? (htmx-output (edit-post-fragment* id))
+                  (redirect (conc "/ien/" (- id)))))
+      ((string=? submit "Protect")
+        (db-set-protected id 0 1)
+        (if htmx? (post-htmx id)
+                  (redirect (conc "/ien/" (- id)))))
+      ((string=? submit "Unprotect")
+        (db-set-protected id 1 0)
+        (if htmx? (post-htmx id)
                   (redirect (conc "/ien/" (- id)))))
       (else (bad-input "bad value for submit")))))
 
