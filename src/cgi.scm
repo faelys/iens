@@ -340,20 +340,20 @@ END-OF-CSS
         (sql db "DELETE FROM gruik WHERE mark<0 AND mtime<?;")
         (- (current-seconds) span))))
   (let ((src-path (get-config "gruik-source")))
-    (when (not src-path) (die "No source configured"))
-    (let* ((fd (file-open src-path open/rdonly))
-           (so (get-config/default "gruik-seen" 0))
-           (_  (set-file-position! fd so seek/set)))
-      (let loop ((offset so))
-        (let ((rp (read-line-pos fd)))
-          (if (= (cadr rp) offset)
-            (exec
-              (sql/transient db "INSERT OR REPLACE INTO config VALUES (?,?);")
-              "gruik-seen"
-              offset)
-            (begin
-              (apply insert-line rp)
-              (loop (cadr rp)))))))))
+    (when src-path
+      (let* ((fd (file-open src-path open/rdonly))
+             (so (get-config/default "gruik-seen" 0))
+             (_  (set-file-position! fd so seek/set)))
+        (let loop ((offset so))
+          (let ((rp (read-line-pos fd)))
+            (if (= (cadr rp) offset)
+              (exec
+                (sql/transient db "INSERT OR REPLACE INTO config VALUES (?,?);")
+                "gruik-seen"
+                offset)
+              (begin
+                (apply insert-line rp)
+                (loop (cadr rp))))))))))
 
 (define (redirect location)
   (write-string "Status: 302\r\nLocation: ")
