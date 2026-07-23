@@ -311,27 +311,38 @@ END-OF-CSS
               (car rest))))))
 
 (define (insert-line line offset)
-  (let ((parsed (parse irc-line line))
-        (now    (current-seconds)))
-    (when parsed
-      (let ((url (list-ref parsed 4)))
-        (exec
-          (sql db
-            "INSERT INTO gruik(position, notes, ptime, section, title, url, mark, ctime, mtime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);")
-          offset
-          (line->notes line 79)
-          (car parsed)
-          (list-ref parsed 2)
-          (list-ref parsed 3)
-          url
-          (+ (query fetch-value
-                    (sql db "SELECT -2*COUNT(*) FROM gruik WHERE url=?;")
-                    url)
-             (query fetch-value
-                    (sql db "SELECT -2*COUNT(*) FROM entry WHERE url=?;")
-                    url))
-          now
-          now)))))
+  (and-let* ((parsed  (parse irc-line line))
+             (now     (current-seconds))
+             (section (list-ref parsed 2))
+             (title   (list-ref parsed 3))
+             (url     (list-ref parsed 4))
+             (_ (= 0 (query fetch-value
+                            (sql db "SELECT COUNT(id) FROM gruik
+                                     WHERE section=? AND url=? AND title=?;")
+                            section url title)
+                     (query fetch-value
+                            (sql db "SELECT COUNT(id) FROM entry
+                                     WHERE source=? AND url=? AND title=?;")
+                            section url title))))
+    (exec
+      (sql db
+        "INSERT INTO gruik(position, notes, ptime,
+                           section, title, url, mark, ctime, mtime)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);")
+      offset
+      (line->notes line 79)
+      (car parsed)
+      section
+      title
+      url
+      (+ (query fetch-value
+                (sql db "SELECT -2*COUNT(*) FROM gruik WHERE url=?;")
+                url)
+         (query fetch-value
+                (sql db "SELECT -2*COUNT(*) FROM entry WHERE url=?;")
+                url))
+      now
+      now)))
 
 (define (catch-up)
   (let* ((span (get-config "gruik-clean")))
