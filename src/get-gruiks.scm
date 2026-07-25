@@ -57,11 +57,6 @@
                   (sql db "SELECT count(id) FROM entry
                            WHERE source=? AND url=? AND title=?;")
                   source url title))
-    (exec (sql db "UPDATE gruik
-                   SET mtime=MAX(CAST(strftime('%s', 'now') as INT),
-                                 (SELECT max(mtime) FROM gruik) + 1)
-                   WHERE section=? AND url=? AND title=? AND mark<0;")
-          source url title)
     (exec
       (sql db "INSERT INTO gruik(position, notes, ptime,
                                  section, url, title, comment_url,
@@ -79,7 +74,12 @@
                (query fetch-value
                       (sql db "SELECT count(id) FROM entry WHERE url=?;")
                       url))
-          0 -1))))
+          0 -1))
+    (exec (sql db "UPDATE gruik
+                   SET mtime=MAX(CAST(strftime('%s', 'now') as INT),
+                                 (SELECT max(mtime) FROM gruik) + 1)
+                   WHERE section=? AND url=? AND title=? AND mark<0;")
+          source url title)))
 
 (define (process-rss source items)
   (unless (null? items)
