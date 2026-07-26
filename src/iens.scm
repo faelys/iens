@@ -559,8 +559,8 @@
               (title  (if (list? spec) (cadr  spec) '()))
               (url    (if (list? spec) (caddr spec) spec))
               (s-url  (cond ((not (list? spec)) #f)
-                            ((null? (cdddr spec)
-                              (comment-link (car spec) (cadr spec))))
+                            ((null? (cdddr spec))
+                              (comment-link (car spec) (cadr spec)))
                             (else (cadddr spec)))))
           (exec (sql db "INSERT INTO entry(url,title,source,source_url,
                                            notes,ctime,mtime)
