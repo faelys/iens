@@ -24,10 +24,13 @@
   openssl ; must be above http-client
   http-client
   lowdown
+  message-digest-byte-vector
   rss
+  sha256-primitive
   sql-de-lite
   sxml-serializer)
 
+(define sha-256 (sha256-primitive))
 (define css-style #<<END-OF-CSS
 * { box-sizing: border-box; }
 h1 { text-align: center; }
@@ -62,6 +65,7 @@ span.section { font-size: 80%; }
 a.section { font-size: 80%; }
 span.title { font-weight: bold; display: block; }
 span.taglist { font-weight: bold; font-size: 80%; }
+span.hashid { font-size: 90%; opacity: 0.6; }
 @media (min-width: 60rem) {
   form {
     grid-template-columns: 5rem 1fr 5rem;
@@ -454,7 +458,9 @@ END-OF-CSS
     ,@(if (or (null? tags) (string=? tags "")) '()
          `((span (@ (class "taglist")) ,tags)))
     (span (@ (class "title")) ,title)
-    (a (@ (href ,url)) ,url)))
+    (a (@ (href ,url)) ,url)
+    (span (@ (class "hashid"))
+      "#" ,(substring (message-digest-string sha-256 url) 0 8))))
 
 (define (domain-counts url)
   (and-let* ((i1     (substring-index "://" url))
