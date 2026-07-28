@@ -43,7 +43,7 @@
 
 (include "common.scm")
 
-(assert (= 7 (db-version)))
+(assert (= 8 (db-version)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Gruik build from sources
@@ -61,7 +61,7 @@
       (sql db "INSERT INTO gruik(position, notes, ptime,
                                  section, url, title, comment_url,
                                  mark, ctime, mtime)
-               VALUES (-?1, '', datetime(?1,'unixepoch'),
+               VALUES (-1, '', datetime(?1,'unixepoch'),
                        ?2, ?3, ?4, ?5,
                        ?6, ?1, ?1);")
       (query fetch-value

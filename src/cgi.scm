@@ -292,7 +292,7 @@ END-OF-CSS
 
 (include "common.scm")
 
-(unless (= 7 (db-version))
+(unless (= 8 (db-version))
   (die "Unexpectad database version"))
 
 

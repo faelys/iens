@@ -51,7 +51,7 @@
   (query fetch-value (sql db "PRAGMA user_version;")))
 
 (when (null? (schema db))
-  (write-line "Initializing database with schema v2")
+  (write-line "Initializing database with schema v8")
   (for-each
     (lambda (s) (exec (sql/transient db s)))
     (list "CREATE TABLE config (key TEXT PRIMARY KEY, val);"
@@ -95,8 +95,10 @@
              ctime INTEGER NOT NULL,
              mtime INTEGER NOT NULL,
              stime INTEGER,
+             lastseen INTEGER,
              entry_id INTEGER REFERENCES entry(id));"
-          "CREATE UNIQUE INDEX i_gruik ON gruik(position);"
+          "CREATE UNIQUE INDEX i_gruik ON gruik(position) WHERE position > 0;"
+          "CREATE INDEX i_gruik_mtime ON gruik(mtime);"
           "CREATE INDEX i_gruik_time ON gruik(ptime);"
           "CREATE INDEX i_gruik_url ON gruik(url);"
           "CREATE TABLE gruik_tags
@@ -107,9 +109,12 @@
           "CREATE TABLE source_rss
             (id INTEGER PRIMARY KEY,
              name TEXT NOT NULL,
-             url TEXT NOT NULL);"
+             url TEXT NOT NULL,
+             format INTEGER NOT NULL DEFAULT 0,
+             last_modified INTEGER,
+             etag TEXT);"
           "CREATE UNIQUE INDEX i_source_rss ON source_rss(name);"
-          "PRAGMA user_version = 4;")))
+          "PRAGMA user_version = 8;")))
 
 (when (= 0 (db-version))
   (write-line "Updating database schema from v0 to v1")
@@ -228,6 +233,22 @@
                                  instr(source_url,')')-instr(source_url,'(')-1)
            WHERE source_url IS NOT NULL;"
           "PRAGMA user_version = 7;")))))
+
+(when (= 7 (db-version))
+  (with-transaction db
+    (lambda ()
+      (for-each
+        (lambda (s) (exec (sql/transient db s)))
+        (list
+          "CREATE INDEX i_gruik_mtime ON gruik(mtime);"
+          "DROP INDEX i_gruik;"
+          "CREATE UNIQUE INDEX i_gruik ON gruik(position) WHERE position > 0;"
+          "CREATE INDEX i_gruik_section ON gruik(section);"
+          "ALTER TABLE source_rss ADD COLUMN format INTEGER NOT NULL DEFAULT 0;"
+          "ALTER TABLE source_rss ADD COLUMN last_modified INTEGER;"
+          "ALTER TABLE source_rss ADD COLUMN etag TEXT;"
+          "ALTER TABLE gruik ADD COLUMN lastseen INTEGER;"
+          "PRAGMA user_version = 8;")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Database Utilitities
