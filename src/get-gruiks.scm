@@ -19,6 +19,7 @@
   (chicken time posix)
   openssl ; must be above http-client
   http-client
+  intarweb
   rss
   sql-de-lite)
 
@@ -91,8 +92,26 @@
       (process-gruik source link (if title title link) comm)
       (process-rss source (cdr items)))))
 
+(define (get-source parse url)
+  (let-values (((result _ resp) (with-input-from-request url #f parse)))
+    (let* ((hdr (response-headers resp))
+           (lm  (header-value 'last-modified hdr))
+           (et  (header-value 'etag hdr)))
+      (when (or (not (null? last-modified)) (not (null? etag)) lm et)
+        (exec (sql db "UPDATE source_rss SET last_modified=?, etag=?
+                       WHERE url=?;")
+              (if lm (local-time->seconds lm) '())
+              (if et (string-append
+                       (cond ((eq? (car et) 'weak) "W")
+                             ((eq? (car et) 'strong) "S")
+                             (else "*"))
+                       (cdr et))
+                '())
+              url)))
+  result))
+
 (define (process-source name url)
-  (let* ((rss (with-input-from-request url #f rss:read))
+  (let* ((rss (get-source rss:read url))
          (source (if (string=? name url)
                      (begin
                        (exec (sql db "UPDATE source_rss SET name=?
