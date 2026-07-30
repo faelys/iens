@@ -21,7 +21,8 @@
   http-client
   intarweb
   rss
-  sql-de-lite)
+  sql-de-lite
+  uri-common)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Command-Line Processing
@@ -92,26 +93,39 @@
       (process-gruik source link (if title title link) comm)
       (process-rss source (cdr items)))))
 
-(define (get-source parse url)
-  (let-values (((result _ resp) (with-input-from-request url #f parse)))
-    (let* ((hdr (response-headers resp))
-           (lm  (header-value 'last-modified hdr))
-           (et  (header-value 'etag hdr)))
-      (when (or (not (null? last-modified)) (not (null? etag)) lm et)
-        (exec (sql db "UPDATE source_rss SET last_modified=?, etag=?
-                       WHERE url=?;")
-              (if lm (local-time->seconds lm) '())
-              (if et (string-append
-                       (cond ((eq? (car et) 'weak) "W")
-                             ((eq? (car et) 'strong) "S")
-                             (else "*"))
-                       (cdr et))
-                '())
-              url)))
-  result))
+(define (get-source parse url last-modified etag)
+  (let* ((hlm (if (null? last-modified) '()
+                  `((if-modified-since
+                      #(,(seconds->local-time last-modified) ())))))
+         (het (cond ((null? etag) '())
+                    ((string=? etag "") '())
+                    ((eqv? (string-ref etag 0) #\S)
+                      `((if-none-match (strong . ,(substring etag 1)))))
+                    ((eqv? (string-ref etag 0) #\W)
+                      `((if-none-match (weak . ,(substring etag 1)))))
+                    (else '())))
+         (req (make-request
+                uri: (uri-reference url)
+                headers: (headers `(,@hlm ,@het)))))
+    (let-values (((result _ resp) (with-input-from-request req #f parse)))
+      (let* ((hdr (response-headers resp))
+             (lm  (header-value 'last-modified hdr))
+             (et  (header-value 'etag hdr)))
+        (when (or (not (null? last-modified)) (not (null? etag)) lm et)
+          (exec (sql db "UPDATE source_rss SET last_modified=?, etag=?
+                         WHERE url=?;")
+                (if lm (local-time->seconds lm) '())
+                (if et (string-append
+                         (cond ((eq? (car et) 'weak) "W")
+                               ((eq? (car et) 'strong) "S")
+                               (else "*"))
+                         (cdr et))
+                  '())
+                url)))
+      result)))
 
-(define (process-source name url)
-  (let* ((rss (get-source rss:read url))
+(define (process-source name url last-modified etag)
+  (let* ((rss (get-source rss:read url last-modified etag))
          (source (if (string=? name url)
                      (begin
                        (exec (sql db "UPDATE source_rss SET name=?
@@ -128,4 +142,4 @@
 
 (query
   (for-each-row* process-source)
-  (sql db "SELECT name,url FROM source_rss;"))
+  (sql db "SELECT name,url,last_modified,etag FROM source_rss;"))
