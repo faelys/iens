@@ -93,6 +93,11 @@
       (process-gruik source link (if title title link) comm)
       (process-rss source (cdr items)))))
 
+(define (absorb-304 req parse)
+  (condition-case
+    (with-input-from-request req #f parse)
+    ((exn unexpected-server-response) (values #f #f #f))))
+
 (define (get-source parse url last-modified etag)
   (let* ((hlm (if (null? last-modified) '()
                   `((if-modified-since
@@ -107,21 +112,22 @@
          (req (make-request
                 uri: (uri-reference url)
                 headers: (headers `(,@hlm ,@het)))))
-    (let-values (((result _ resp) (with-input-from-request req #f parse)))
-      (let* ((hdr (response-headers resp))
-             (lm  (header-value 'last-modified hdr))
-             (et  (header-value 'etag hdr)))
-        (when (or (not (null? last-modified)) (not (null? etag)) lm et)
-          (exec (sql db "UPDATE source_rss SET last_modified=?, etag=?
-                         WHERE url=?;")
-                (if lm (local-time->seconds lm) '())
-                (if et (string-append
-                         (cond ((eq? (car et) 'weak) "W")
-                               ((eq? (car et) 'strong) "S")
-                               (else "*"))
-                         (cdr et))
-                  '())
-                url)))
+    (let-values (((result _ resp) (absorb-304 req parse)))
+      (when resp
+        (let* ((hdr (response-headers resp))
+               (lm  (header-value 'last-modified hdr))
+               (et  (header-value 'etag hdr)))
+          (when (or (not (null? last-modified)) (not (null? etag)) lm et)
+            (exec (sql db "UPDATE source_rss SET last_modified=?, etag=?
+                           WHERE url=?;")
+                  (if lm (local-time->seconds lm) '())
+                  (if et (string-append
+                           (cond ((eq? (car et) 'weak) "W")
+                                 ((eq? (car et) 'strong) "S")
+                                 (else "*"))
+                           (cdr et))
+                      '())
+                  url))))
       result)))
 
 (define (process-source name url last-modified etag)
@@ -135,7 +141,8 @@
                        (rss:item-title (rss:feed-channel rss)))
                      name)))
     (assert source)
-    (process-rss source (rss:feed-items rss))))
+    (when rss
+      (process-rss source (rss:feed-items rss)))))
 
 ;;;;;;;;;;;;;;;
 ;; Actual Run
