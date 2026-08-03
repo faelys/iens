@@ -13,6 +13,7 @@
 ; OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 (import
+  (chicken condition)
   (chicken io)
   (chicken process-context)
   (chicken string)
@@ -131,18 +132,22 @@
       result)))
 
 (define (process-source name url last-modified etag)
-  (let* ((rss (get-source rss:read url last-modified etag))
-         (source (if (string=? name url)
-                     (begin
-                       (exec (sql db "UPDATE source_rss SET name=?
-                                      WHERE name=? AND url=?;")
-                             (rss:item-title (rss:feed-channel rss))
-                             name url)
-                       (rss:item-title (rss:feed-channel rss)))
-                     name)))
-    (assert source)
-    (when rss
-      (process-rss source (rss:feed-items rss)))))
+  (condition-case
+    (let* ((rss (get-source rss:read url last-modified etag))
+           (source (if (string=? name url)
+                       (begin
+                         (exec (sql db "UPDATE source_rss SET name=?
+                                        WHERE name=? AND url=?;")
+                               (rss:item-title (rss:feed-channel rss))
+                               name url)
+                         (rss:item-title (rss:feed-channel rss)))
+                       name)))
+      (assert source)
+      (when rss
+        (process-rss source (rss:feed-items rss))))
+    (exn () (write-line (conc "Error while checking " name))
+            (print-error-message exn))))
+
 
 ;;;;;;;;;;;;;;;
 ;; Actual Run
