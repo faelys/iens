@@ -131,20 +131,26 @@
                   url))))
       result)))
 
+(define (get-rss url last-modified etag)
+  (let ((feed (get-source rss:read url last-modified etag)))
+    (if feed
+        (list process-rss
+              (rss:feed-items feed) process-rss
+              (rss:item-title (rss:feed-channel feed)))
+        #f)))
+
 (define (process-source name url last-modified etag)
   (condition-case
-    (let* ((rss (get-source rss:read url last-modified etag))
-           (source (if (string=? name url)
-                       (begin
-                         (exec (sql db "UPDATE source_rss SET name=?
-                                        WHERE name=? AND url=?;")
-                               (rss:item-title (rss:feed-channel rss))
-                               name url)
-                         (rss:item-title (rss:feed-channel rss)))
-                       name)))
-      (assert source)
-      (when rss
-        (process-rss source (rss:feed-items rss))))
+    (let ((data (get-rss url last-modified etag)))
+      (when data
+        (let ((source (if (string=? name url)
+                          (begin
+                            (exec (sql db "UPDATE source_rss SET name=?
+                                           WHERE name=? AND url=?;")
+                                  (caddr data) name url)
+                            (caddr data))
+                          name)))
+          ((car data) source (cadr data)))))
     (exn () (write-line (conc "Error while checking " name))
             (print-error-message exn))))
 
