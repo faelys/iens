@@ -15,9 +15,11 @@
 (import
   (chicken condition)
   (chicken io)
+  (chicken port)
   (chicken process-context)
   (chicken string)
   (chicken time posix)
+  atom
   openssl ; must be above http-client
   http-client
   intarweb
@@ -84,6 +86,14 @@
                    WHERE section=? AND url=? AND title=? AND mark<0;")
           source url title)))
 
+(define (process-atom source items)
+  (unless (null? items)
+    (process-gruik source
+                   (link-uri (car (entry-links (car items))))
+                   (title-text (entry-title (car items)))
+                   #f)
+    (process-atom source (cdr items))))
+
 (define (process-rss source items)
   (unless (null? items)
     (let* ((item  (car items))
@@ -131,17 +141,28 @@
                   url))))
       result)))
 
+(define (atom:read) (read-atom-feed (current-input-port)))
+(define (get-atom url last-modified etag)
+  (let ((feed (get-source atom:read url last-modified etag)))
+    (if feed
+        (list process-atom
+              (feed-entries feed)
+              (title-text (feed-title feed)))
+        #f)))
+
 (define (get-rss url last-modified etag)
   (let ((feed (get-source rss:read url last-modified etag)))
     (if feed
         (list process-rss
-              (rss:feed-items feed) process-rss
+              (rss:feed-items feed)
               (rss:item-title (rss:feed-channel feed)))
         #f)))
 
-(define (process-source name url last-modified etag)
+(define (process-source name url format last-modified etag)
   (condition-case
-    (let ((data (get-rss url last-modified etag)))
+    (let ((data (case format ((1) (get-atom url last-modified etag))
+                             ((2) (get-rss  url last-modified etag))
+                             (else #f))))
       (when data
         (let ((source (if (string=? name url)
                           (begin
@@ -160,4 +181,4 @@
 
 (query
   (for-each-row* process-source)
-  (sql db "SELECT name,url,last_modified,etag FROM source_rss;"))
+  (sql db "SELECT name,url,format,last_modified,etag FROM source_rss;"))
