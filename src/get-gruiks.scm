@@ -158,9 +158,28 @@
               (rss:item-title (rss:feed-channel feed)))
         #f)))
 
+(define (get-auto url)
+  (let* ((data (get-source read-string url '() '()))
+         (da   (condition-case (with-input-from-string data atom:read)
+                               ((atom) #f)))
+         (dr   (condition-case (with-input-from-string data rss:read)
+                               ((rss) #f))))
+    (exec (sql db "UPDATE source_rss SET format=? WHERE url=?;")
+      (cond (da 1) (dr 2) (else -1))
+      url)
+    (cond
+      (da (list process-atom
+                (feed-entries da)
+                (title-text (feed-title da))))
+      (dr (list process-rss
+                (rss:feed-items dr)
+                (rss:item-title (rss:feed-channel dr))))
+      (else #f))))
+
 (define (process-source name url format last-modified etag)
   (condition-case
-    (let ((data (case format ((1) (get-atom url last-modified etag))
+    (let ((data (case format ((0) (get-auto url))
+                             ((1) (get-atom url last-modified etag))
                              ((2) (get-rss  url last-modified etag))
                              (else #f))))
       (when data
