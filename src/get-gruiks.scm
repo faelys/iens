@@ -42,9 +42,10 @@
 (define db
   (open-database db-name))
 (exec (sql/transient db "PRAGMA foreign_keys = ON;
+                         PRAGMA journal_mode = WAL;
+                         PRAGMA synchronous = NORMAL;
                          PRAGMA busy_timeout = 5000;"))
-; PRAGMA journal_mode = WAL;
-; PRAGMA synchronous = NORMAL;
+(set-busy-handler! db (busy-timeout 10000))
 
 (include "common.scm")
 

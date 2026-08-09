@@ -96,7 +96,11 @@
 (define db
   (open-database db-name))
 (write-line (conc "Using database " db-name " with SQLite " library-version))
-(exec (sql db "PRAGMA foreign_keys = ON;"))
+(exec (sql/transient db "PRAGMA foreign_keys = ON;
+                         PRAGMA journal_mode = WAL;
+                         PRAGMA synchronous = NORMAL;
+                         PRAGMA busy_timeout = 5000;"))
+(set-busy-handler! db (busy-timeout 10000))
 
 (include "common.scm")
 
