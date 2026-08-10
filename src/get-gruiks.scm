@@ -18,11 +18,13 @@
   (chicken port)
   (chicken process-context)
   (chicken string)
+  (chicken time)
   (chicken time posix)
   atom
   openssl ; must be above http-client
   http-client
   intarweb
+  nanosleep
   rss
   sql-de-lite
   uri-common)
@@ -30,11 +32,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Command-Line Processing
 
+(define arg-list (command-line-arguments))
+
 (define db-name
-  (let ((arg-list (command-line-arguments)))
-    (if (>= (length arg-list) 1)
+  (if (>= (length arg-list) 1)
       (car arg-list)
-      "iens.sqlite")))
+      "iens.sqlite"))
+
+(define total-period
+  (if (>= (length arg-list) 2)
+      (string->number (list-ref arg-list 1))
+      #f))
 
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;; Persistent Storage
@@ -199,6 +207,29 @@
 ;;;;;;;;;;;;;;;
 ;; Actual Run
 
-(query
-  (for-each-row* process-source)
-  (sql db "SELECT name,url,format,last_modified,etag FROM source_rss;"))
+(define (add-period prev-deadline)
+  (+ (max prev-deadline (current-seconds))
+     (/ total-period
+        (query fetch-value (sql db "SELECT count(*) FROM source_rss;")))))
+
+(if total-period
+    (let loop loop ((index (query fetch-value
+                                  (sql/transient db
+                                    "SELECT min(id) FROM source_rss;")))
+                    (deadline (add-period 0)))
+      (let ((arg (query fetch-row
+                        (sql db "SELECT
+                                   COALESCE((SELECT min(id) FROM source_rss
+                                                            WHERE id > ?1),
+                                            (SELECT min(id) FROM source_rss)),
+                                   name,url,format,last_modified,etag
+                                 FROM source_rss WHERE id = ?1;")
+                        index)))
+        (apply process-source (cdr arg))
+        (let ((rest (- deadline (current-seconds))))
+          (when (positive? rest)
+            (secosleep rest)))
+        (loop (car arg) (add-period deadline))))
+    (query
+      (for-each-row* process-source)
+      (sql db "SELECT name,url,format,last_modified,etag FROM source_rss;")))
