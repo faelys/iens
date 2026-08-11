@@ -213,10 +213,10 @@
         (query fetch-value (sql db "SELECT count(*) FROM source_rss;")))))
 
 (if total-period
-    (let loop loop ((index (query fetch-value
-                                  (sql/transient db
-                                    "SELECT min(id) FROM source_rss;")))
-                    (deadline (add-period 0)))
+    (let loop ((index (query fetch-value
+                             (sql/transient db
+                               "SELECT min(id) FROM source_rss;")))
+               (deadline (add-period 0)))
       (let ((arg (query fetch-row
                         (sql db "SELECT
                                    COALESCE((SELECT min(id) FROM source_rss
