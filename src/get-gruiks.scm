@@ -154,7 +154,7 @@
 (define (get-atom url last-modified etag)
   (let ((feed (get-source atom:read url last-modified etag)))
     (if feed
-        (list process-atom
+        (list 1
               (feed-entries feed)
               (title-text (feed-title feed)))
         #f)))
@@ -162,7 +162,7 @@
 (define (get-rss url last-modified etag)
   (let ((feed (get-source rss:read url last-modified etag)))
     (if feed
-        (list process-rss
+        (list 2
               (rss:feed-items feed)
               (rss:item-title (rss:feed-channel feed)))
         #f)))
@@ -177,10 +177,10 @@
       (cond (da 1) (dr 2) (else -1))
       url)
     (cond
-      (da (list process-atom
+      (da (list 1
                 (feed-entries da)
                 (title-text (feed-title da))))
-      (dr (list process-rss
+      (dr (list 2
                 (rss:feed-items dr)
                 (rss:item-title (rss:feed-channel dr))))
       (else #f))))
@@ -192,14 +192,19 @@
                              ((2) (get-rss  url last-modified etag))
                              (else #f))))
       (when data
-        (let ((source (if (string=? name url)
+        (let ((args (list
+                      (if (string=? name url)
                           (begin
                             (exec (sql db "UPDATE source_rss SET name=?
                                            WHERE name=? AND url=?;")
                                   (caddr data) name url)
                             (caddr data))
-                          name)))
-          ((car data) source (cadr data)))))
+                          name)
+                      (cadr data))))
+          (case (car data)
+            ((1) (apply process-atom args))
+            ((2) (apply process-rss  args))
+            (else (assert #f "Bad process index"))))))
     (exn () (write-line (conc "Error while checking " name))
             (print-error-message exn))))
 
