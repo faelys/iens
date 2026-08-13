@@ -205,9 +205,9 @@
             ((1) (apply process-atom args))
             ((2) (apply process-rss  args))
             (else (assert #f "Bad process index"))))))
+    (exn (user-interrupt) (signal exn))
     (exn () (write-line (conc "Error while checking " name))
             (print-error-message exn))))
-
 
 ;;;;;;;;;;;;;;;
 ;; Actual Run
