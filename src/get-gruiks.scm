@@ -16,6 +16,7 @@
   (chicken condition)
   (chicken io)
   (chicken port)
+  (chicken process signal)
   (chicken process-context)
   (chicken string)
   (chicken time)
@@ -217,6 +218,8 @@
      (/ total-period
         (query fetch-value (sql db "SELECT count(*) FROM source_rss;")))))
 
+(define usr1-queue (make-signal-handler signal/usr1))
+
 (if total-period
     (let loop ((index (query fetch-value
                              (sql/transient db
@@ -234,7 +237,8 @@
         (let ((rest (- deadline (current-seconds))))
           (when (positive? rest)
             (secosleep rest)))
-        (loop (car arg) (add-period deadline))))
+        (unless (and (<= (car arg) index) (usr1-queue))
+          (loop (car arg) (add-period deadline)))))
     (query
       (for-each-row* process-source)
       (sql db "SELECT name,url,format,last_modified,etag FROM source_rss;")))
