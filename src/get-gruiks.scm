@@ -72,24 +72,32 @@
                   (sql db "SELECT count(id) FROM entry
                            WHERE source=? AND url=? AND title=?;")
                   source url title))
-    (exec
-      (sql db "INSERT INTO gruik(position, notes, ptime,
-                                 section, url, title, comment_url,
-                                 mark, ctime, mtime)
-               VALUES (-1, '', datetime(?1,'unixepoch')||'*',
-                       ?2, ?3, ?4, ?5,
-                       ?6, ?1, ?1);")
-      (query fetch-value
-             (sql db "SELECT MAX(CAST(strftime('%s', 'now') as INT),
-                                 (SELECT max(mtime) FROM gruik) + 1);"))
-      source url title (if comm comm '())
-      (if (= 0 (query fetch-value
-                      (sql db "SELECT count(id) FROM gruik WHERE url=?;")
-                      url)
-               (query fetch-value
-                      (sql db "SELECT count(id) FROM entry WHERE url=?;")
-                      url))
-          0 -1))
+    (when (= 0 (exec (sql db "UPDATE gruik
+                              SET title=?,
+                                  notes=trim(notes||char(10)
+                                             ||'Previously “'||title||'”',
+                                             char(10)),
+                                  mtime=CAST(strftime('%s', 'now') AS INT)
+                              WHERE url=? AND section=? AND comment_url=?;")
+                     title url source (if comm comm '())))
+      (exec
+        (sql db "INSERT INTO gruik(position, notes, ptime,
+                                   section, url, title, comment_url,
+                                   mark, ctime, mtime)
+                 VALUES (-1, '', datetime(?1,'unixepoch')||'*',
+                         ?2, ?3, ?4, ?5,
+                         ?6, ?1, ?1);")
+        (query fetch-value
+               (sql db "SELECT MAX(CAST(strftime('%s', 'now') as INT),
+                                   (SELECT max(mtime) FROM gruik) + 1);"))
+        source url title (if comm comm '())
+        (if (= 0 (query fetch-value
+                        (sql db "SELECT count(id) FROM gruik WHERE url=?;")
+                        url)
+                 (query fetch-value
+                        (sql db "SELECT count(id) FROM entry WHERE url=?;")
+                        url))
+            0 -1)))
     (exec (sql db "UPDATE gruik
                    SET mtime=MAX(CAST(strftime('%s', 'now') as INT),
                                  (SELECT max(mtime) FROM gruik) + 1)
