@@ -78,8 +78,9 @@
                                              ||'Previously “'||title||'”',
                                              char(10)),
                                   mtime=CAST(strftime('%s', 'now') AS INT)
-                              WHERE url=? AND section=? AND comment_url=?;")
-                     title url source (if comm comm '())))
+                              WHERE url=? AND section=?
+                                AND COALESCE(comment_url,'')=?;")
+                     title url source (if comm comm "")))
       (exec
         (sql db "INSERT INTO gruik(position, notes, ptime,
                                    section, url, title, comment_url,
