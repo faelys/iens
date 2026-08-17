@@ -64,30 +64,30 @@
 ;; Gruik build from sources
 
 (define (process-gruik source url title comm)
-  (if (= 0 (query fetch-value
-                  (sql db "SELECT count(id) FROM gruik
-                           WHERE section=? AND url=? AND title=?;")
-                  source url title)
-           (query fetch-value
-                  (sql db "SELECT count(id) FROM entry
-                           WHERE source=? AND url=? AND title=?;")
-                  source url title))
+  (when (= 0 (exec (sql db "UPDATE gruik
+                            SET lastseen=CAST(strftime('%s', 'now') as INT)
+                            WHERE section=? AND url=? AND title=?;")
+                   source url title)
+             (query fetch-value
+                    (sql db "SELECT count(id) FROM entry
+                             WHERE source=? AND url=? AND title=?;")
+                    source url title))
     (when (= 0 (exec (sql db "UPDATE gruik
                               SET title=?,
                                   notes=trim(notes||char(10)
                                              ||'Previously “'||title||'”',
                                              char(10)),
-                                  mtime=CAST(strftime('%s', 'now') AS INT)
+                                  lastseen=CAST(strftime('%s', 'now') AS INT)
                               WHERE url=? AND section=?
                                 AND COALESCE(comment_url,'')=?;")
                      title url source (if comm comm "")))
       (exec
         (sql db "INSERT INTO gruik(position, notes, ptime,
                                    section, url, title, comment_url,
-                                   mark, ctime, mtime)
+                                   mark, ctime, mtime, lastseen)
                  VALUES (-1, '', datetime(?1,'unixepoch')||'*',
                          ?2, ?3, ?4, ?5,
-                         ?6, ?1, ?1);")
+                         ?6, ?1, ?1, CAST(strftime('%s', 'now') as INT));")
         (query fetch-value
                (sql db "SELECT MAX(CAST(strftime('%s', 'now') as INT),
                                    (SELECT max(mtime) FROM gruik) + 1);"))
@@ -98,12 +98,7 @@
                  (query fetch-value
                         (sql db "SELECT count(id) FROM entry WHERE url=?;")
                         url))
-            0 -1)))
-    (exec (sql db "UPDATE gruik
-                   SET mtime=MAX(CAST(strftime('%s', 'now') as INT),
-                                 (SELECT max(mtime) FROM gruik) + 1)
-                   WHERE section=? AND url=? AND title=? AND mark<0;")
-          source url title)))
+            0 -1)))))
 
 (define (process-atom source items)
   (unless (null? items)
