@@ -356,7 +356,9 @@ END-OF-CSS
   (let* ((span (get-config "gruik-clean")))
     (when (number? span)
       (exec
-        (sql db "DELETE FROM gruik WHERE mark<0 AND mtime<?;")
+        (sql db "DELETE FROM gruik
+                 WHERE mark < 0 AND mtime < ?1
+                   AND (lastseen IS NULL OR lastseen < ?1);")
         (- (current-seconds) span))))
   (let ((src-path (get-config "gruik-source")))
     (when src-path
