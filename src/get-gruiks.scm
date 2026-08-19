@@ -196,7 +196,7 @@
                              ((1) (get-atom url last-modified etag))
                              ((2) (get-rss  url last-modified etag))
                              (else #f))))
-      (when data
+      (if data
         (let ((args (list
                       (if (string=? name url)
                           (begin
@@ -209,7 +209,11 @@
           (case (car data)
             ((1) (apply process-atom args))
             ((2) (apply process-rss  args))
-            (else (assert #f "Bad process index"))))))
+            (else (assert #f "Bad process index"))))
+        (exec (sql db "UPDATE gruik
+                       SET lastseen=CAST(strftime('%s', 'now') as INT)
+                       WHERE section=?;")
+              name)))
     (exn (user-interrupt) (signal exn))
     (exn () (write-line (conc "Error while checking " name))
             (print-error-message exn))))
