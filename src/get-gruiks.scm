@@ -65,22 +65,25 @@
 
 (define (process-gruik source url title comm)
   (when (= 0 (exec (sql db "UPDATE gruik
-                            SET lastseen=CAST(strftime('%s', 'now') as INT)
-                            WHERE section=? AND url=? AND title=?;")
-                   source url title)
+                            SET lastseen=CAST(strftime('%s', 'now') as INT),
+                                comment_url=?
+                            WHERE section=? AND url=? AND title=?
+                              AND (comment_url IS NULL OR comment_url=?1);")
+                   (if comm comm '()) source url title)
              (query fetch-value
                     (sql db "SELECT count(id) FROM entry
                              WHERE source=? AND url=? AND title=?;")
                     source url title))
     (when (= 0 (exec (sql db "UPDATE gruik
                               SET title=?,
+                                  comment_url=?,
                                   notes=trim(notes||char(10)
                                              ||'Previously “'||title||'”',
                                              char(10)),
                                   lastseen=CAST(strftime('%s', 'now') AS INT)
                               WHERE url=? AND section=?
-                                AND COALESCE(comment_url,'')=?;")
-                     title url source (if comm comm "")))
+                                AND (comment_url IS NULL OR comment_url=?2);")
+                     title (if comm comm '()) url source))
       (exec
         (sql db "INSERT INTO gruik(position, notes, ptime,
                                    section, url, title, comment_url,
