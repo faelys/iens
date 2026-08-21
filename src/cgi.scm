@@ -387,16 +387,19 @@ END-OF-CSS
   (let ((row (query fetch-row
                     (sql db
                       (if (positive? id)
-                          "SELECT section,url FROM gruik
+                          "SELECT section,url,comment_url FROM gruik
                            WHERE id=? AND COALESCE(description,'')='';"
-                          "SELECT source,url FROM entry
+                          "SELECT section,url,section_url FROM entry
                            WHERE protected=0 AND id=?
                              AND COALESCE(description,'')='';"))
                     (abs id))))
     (unless (null? row)
-      (let ((section (car row))
-            (url     (cadr row))
-            (comm    (apply comment-link row)))
+      (let* ((section (car row))
+             (url     (cadr row))
+             (dbcomm  (caddr row))
+             (comm    (if (or (null? dbcomm) (string=? dbcomm ""))
+                          (comment-link section url)
+                          dbcomm)))
         (if comm
           (exec
             (sql db
