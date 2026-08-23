@@ -552,7 +552,7 @@ END-OF-CSS
                   notes,description,group_concat('#'||name,' ')
            FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
                       LEFT OUTER JOIN tag ON tag_id=tag.id
-           WHERE mark=1 AND gruik.id=? GROUP BY gruik.id;"
+           WHERE gruik.id=? GROUP BY gruik.id;"
           "SELECT -entry.id,
                   strftime('%Y.%m.%d %H:%M:%S', ctime, 'unixepoch') AS ptime,
                   COALESCE(source, 'Untracked Ien'),
