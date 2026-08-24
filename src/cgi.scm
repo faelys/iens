@@ -324,10 +324,17 @@ END-OF-CSS
              (section (list-ref parsed 2))
              (title   (list-ref parsed 3))
              (url     (list-ref parsed 4))
-             (_ (= 0 (query fetch-value
-                            (sql db "SELECT COUNT(id) FROM gruik
-                                     WHERE section=? AND url=? AND title=?;")
-                            section url title)
+             (_ (= 0 (exec (sql db
+                             "UPDATE gruik
+                              SET mtime=CAST(strftime('%s', 'now') as INT),
+                                  notes=(CASE WHEN title=?3
+                                         THEN notes
+                                         ELSE trim(notes||char(10)
+                                                   ||'Also “'||?3||'”',
+                                                   char(10))
+                                         END)
+                              WHERE section=?1 AND url=?2;")
+                           section url title)
                      (query fetch-value
                             (sql db "SELECT COUNT(id) FROM entry
                                      WHERE source=? AND url=? AND title=?;")
