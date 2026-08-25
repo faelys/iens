@@ -553,7 +553,7 @@
         (else (assert #f "Unknown type parameter for " (cadr args)))))
 
 (define (add-entry* ctime spec notes)
-  (assert (or (string? spec) (and (list? spec) (= 3 (length spec))))
+  (assert (or (string? spec) (and (list? spec) (<= 3 (length spec) 4)))
           "Bad entry spec " spec)
   (trace `(add-entry ,ctime ,spec ,notes))
   (let ((new-id
