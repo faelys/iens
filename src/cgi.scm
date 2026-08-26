@@ -926,9 +926,10 @@ END-OF-CSS
         id))
 
 (define (db-set-protected id old-p new-p)
-  (exec (sql db "UPDATE entry SET mtime=?, protected=?
+  (exec (sql db "UPDATE entry SET mtime=?, ptime=?, protected=?
                  WHERE protected=? AND id=?;")
         (current-seconds)
+        (if (zero? new-p) '() (current-seconds))
         new-p
         old-p
         (- id)))
