@@ -868,6 +868,28 @@ END-OF-CSS
                 LEFT OUTER JOIN tag ON tag_id=tag.id
      WHERE mark >= 1 AND COALESCE(comment_url,'') = '' GROUP BY gruik.id;"))
 
+(define (view-selection id)
+  (let ((row (query fetch-row
+                    (sql/transient db "SELECT name,text
+                                       FROM selector WHERE id=?;")
+                    id)))
+    (if (null? row)
+        (write-string "Status: 404\r\n\r\n")
+        (gruik-list-view
+          (conc "Selection #" id ": " (car row))
+          post-fragment
+          '()
+          (conc
+            "SELECT -entry.id,(CASE WHEN protected=0 THEN 10 ELSE 11 END),
+                    strftime('%Y.%m.%d %H:%M:%S',ctime,'unixepoch') AS ptime,
+                    COALESCE(source,'Untracked Ien'),
+                    COALESCE(title,''),url,source_url,
+                    group_concat('#'||name,' '),COALESCE(description,notes)
+             FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
+                        LEFT OUTER JOIN tag ON tag_id=tag.id "
+            (cadr row)
+            "GROUP BY url_id ORDER BY ptime")))))
+
 (define (view-url-search op q)
   (gruik-list-view
     (conc "Gruks " op " " q)
@@ -1200,6 +1222,10 @@ END-OF-CSS
 (define route-no-comm
   (preceded-by (char-seq "no-comm")
                (result view-no-comm)))
+(define route-selection
+  (sequence* ((_  (char-seq "selection/"))
+              (id (as-string (one-or-more irc-digit))))
+    (result (lambda () (view-selection (string->number id))))))
 (define route-url-search
   (sequence* ((_  (char-seq "url?"))
               (op (any-of (char-seq "glob")
@@ -1242,6 +1268,7 @@ END-OF-CSS
                          route-ok
                          route-new
                          route-no-comm
+                         route-selection
                          route-url-search
                          route-x-new)))))
 
