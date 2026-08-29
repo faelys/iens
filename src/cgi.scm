@@ -1019,7 +1019,8 @@ END-OF-CSS
     (if (null? diff) '()
       `((table
         ,@(map (lambda (line)
-                 `(tr (td ,(conc "Selection #" (car line)))
+                 `(tr (td (a (@ (href ,(conc "selection/" (car line))))
+                             ,(conc "Selection #" (car line))))
                       (td (@ (title ,(list-ref line 1))) ,(list-ref line 2))
                       (td ,(->string (list-ref line 3)))
                       (td ,(conc (if (positive? (list-ref line 4)) "(+" "(")
