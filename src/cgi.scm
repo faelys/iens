@@ -582,7 +582,7 @@ END-OF-CSS
             "UPDATE gruik SET mtime=?,notes=trim(notes||char(10)||?,char(10)),
                               description=?,mark=?,comment_url=?,
                               url=COALESCE(?,url)
-             WHERE mark=1 AND id=?;"
+             WHERE (mark=1 OR mark=2) AND id=?;"
             "UPDATE entry SET mtime=?,notes=trim(notes||char(10)||?,char(10)),
                               description=?,protected=?,source_url=?,
                               url=COALESCE(?,url)
@@ -637,8 +637,8 @@ END-OF-CSS
   (let* ((data (case mark
                  ((0)  '("unmarked" "unmarked"  "Mark"    "Delete"))
                  ((1)  '("marked"   "marked"    "Edit"    "Unmark"))
-                 ((2)  '("locked"   "locked"    "Push"    "Unlock"))
-                 ((3)  '("locked"   "protected" "Push"    "Unlock"))
+                 ((2)  '("locked"   "locked"    "Push"    "Edit"))
+                 ((3)  '("locked"   "protected" "Push"    "Edit"))
                  ((10) '("ien"      "locked"    "Protect" "Edit"))
                  ((11) '("ien"      "protected" #f        "Unprotect"))
                  (else `("undelete" "bad"       "Restore" ,(if (<= -5 mark 0)
@@ -1125,9 +1125,9 @@ END-OF-CSS
       ((string=? submit "Push")
         (if htmx? (htmx-push-gruik id)
                   (begin (db-push-gruik id) (redirect "/"))))
-      ((string=? submit "Unlock")
-        (db-set-mark id 2 1)
-        (if htmx? (post-htmx id) (redirect (conc "/gruik/" id))))
+      ((string=? submit "Edit")
+        (if htmx? (htmx-output (edit-post-fragment* id))
+                  (redirect (conc "/gruik/" id))))
       (else (bad-input "bad value for submit")))))
 
 (define (do-marked htmx?)
