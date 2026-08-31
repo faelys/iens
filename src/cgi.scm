@@ -890,6 +890,35 @@ END-OF-CSS
             (cadr row)
             "GROUP BY url_id ORDER BY ptime")))))
 
+(define (view-tag tag)
+  (let ((row (query fetch-row
+                    (sql/transient db "SELECT id,name
+                                       FROM tag WHERE name=?;")
+                    tag)))
+    (if (null? row)
+        (write-string "Status: 404\r\n\r\n")
+        (gruik-list-view
+          (conc "Tag " (cadr row))
+          post-fragment
+          '()
+          "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
+                  group_concat('#'||name,' '),COALESCE(description,notes)
+           FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
+                      LEFT OUTER JOIN tag ON tag_id=tag.id
+           WHERE gruik.id IN (SELECT gruik_id FROM gruik_tags WHERE tag_id=?1)
+           GROUP BY gruik.id
+           UNION ALL
+           SELECT -entry.id,(CASE WHEN protected=0 THEN 10 ELSE 11 END),
+                  strftime('%Y.%m.%d %H:%M:%S',ctime,'unixepoch') AS ptime,
+                  COALESCE(source,'Untracked Ien'),
+                  COALESCE(title,''),url,source_url,
+                  group_concat('#'||name,' '),COALESCE(description,notes)
+           FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
+                      LEFT OUTER JOIN tag ON tag_id=tag.id
+           WHERE entry.id IN (SELECT url_id FROM tagrel WHERE tag_id=?1)
+           GROUP BY url_id ORDER BY ptime"
+          (car row)))))
+
 (define (view-url-search op q)
   (gruik-list-view
     (conc "Gruks " op " " q)
@@ -1227,6 +1256,10 @@ END-OF-CSS
   (sequence* ((_  (char-seq "selection/"))
               (id (as-string (one-or-more irc-digit))))
     (result (lambda () (view-selection (string->number id))))))
+(define route-tag
+  (sequence* ((_   (char-seq "tag/"))
+              (tag (as-string (one-or-more item))))
+    (result (lambda () (view-tag tag)))))
 (define route-url-search
   (sequence* ((_  (char-seq "url?"))
               (op (any-of (char-seq "glob")
@@ -1270,6 +1303,7 @@ END-OF-CSS
                          route-new
                          route-no-comm
                          route-selection
+                         route-tag
                          route-url-search
                          route-x-new)))))
 
