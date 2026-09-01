@@ -157,13 +157,17 @@ END-OF-CSS
 (define url-kv-pair
   (sequence* ((k url-key)
               (_ (is #\=))
-              (v url-value)
-              (_ (is #\&)))
+              (v url-value))
     (result (list k (string-translate v "\r")))))
 (define url-kv-pairs
-  (zero-or-more url-kv-pair))
+  (sequence* ((h url-kv-pair)
+              (t (zero-or-more (preceded-by (is #\&) url-kv-pair))))
+    (result (cons h t))))
+(define url-query
+  (any-of (preceded-by (is #\?) url-kv-pairs)
+          (result '())))
 (define input-list
-  (parse url-kv-pairs (string-append input-text "&")))
+  (if (string=? input-text "") '() (parse url-kv-pairs input-text)))
 (define (input-var name)
   (let loop ((rest input-list))
     (cond ((null? rest) #f)
@@ -175,6 +179,15 @@ END-OF-CSS
 (define (required-input-var name)
   (let ((val (input-var name)))
     (if val val (bad-input (conc "missing " name)))))
+
+(define (q-limit-offset q)
+  (let* ((ns (alist-ref "n" q string=?))
+         (nn (if ns (string->number (car ns)) #f))
+         (n  (if (and nn (positive? nn)) nn 100))
+         (ps (alist-ref "p" q string=?))
+         (pn (if ps (string->number (car ps)) #f))
+         (p  (if (and pn (positive? pn)) pn 1)))
+    (list n (* n (sub1 p)))))
 
 (define start-html
   "Content-Type: text/html\r\n\r\n<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">")
@@ -890,7 +903,7 @@ END-OF-CSS
             (cadr row)
             "GROUP BY url_id ORDER BY ptime")))))
 
-(define (view-tag tag)
+(define (view-tag tag limit-offset)
   (let ((row (query fetch-row
                     (sql/transient db "SELECT id,name
                                        FROM tag WHERE name=?;")
@@ -916,8 +929,10 @@ END-OF-CSS
            FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
                       LEFT OUTER JOIN tag ON tag_id=tag.id
            WHERE entry.id IN (SELECT url_id FROM tagrel WHERE tag_id=?1)
-           GROUP BY url_id ORDER BY ptime"
-          (car row)))))
+           GROUP BY url_id ORDER BY ptime LIMIT ?2 OFFSET ?3"
+          (car row)
+          (car limit-offset)
+          (cadr limit-offset)))))
 
 (define (view-url-search op q)
   (gruik-list-view
@@ -1258,8 +1273,9 @@ END-OF-CSS
     (result (lambda () (view-selection (string->number id))))))
 (define route-tag
   (sequence* ((_   (char-seq "tag/"))
-              (tag (as-string (one-or-more item))))
-    (result (lambda () (view-tag tag)))))
+              (tag (as-string (repeated item until: (is #\?))))
+              (q   url-query))
+    (result (lambda () (view-tag tag (q-limit-offset q))))))
 (define route-url-search
   (sequence* ((_  (char-seq "url?"))
               (op (any-of (char-seq "glob")
