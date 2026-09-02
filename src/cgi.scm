@@ -158,7 +158,7 @@ END-OF-CSS
   (sequence* ((k url-key)
               (_ (is #\=))
               (v url-value))
-    (result (list k (string-translate v "\r")))))
+    (result (cons k (string-translate v "\r")))))
 (define url-kv-pairs
   (sequence* ((h url-kv-pair)
               (t (zero-or-more (preceded-by (is #\&) url-kv-pair))))
@@ -169,10 +169,7 @@ END-OF-CSS
 (define input-list
   (if (string=? input-text "") '() (parse url-kv-pairs input-text)))
 (define (input-var name)
-  (let loop ((rest input-list))
-    (cond ((null? rest) #f)
-          ((string=? (caar rest) name) (cadar rest))
-          (else (loop (cdr rest))))))
+  (alist-ref name input-list string=?))
 (define (optional-input-var name fallback)
   (let ((val (input-var name)))
     (if val val fallback)))
@@ -182,10 +179,10 @@ END-OF-CSS
 
 (define (q-limit-offset q)
   (let* ((ns (alist-ref "n" q string=?))
-         (nn (if ns (string->number (car ns)) #f))
+         (nn (if ns (string->number ns) #f))
          (n  (if (and nn (positive? nn)) nn 100))
          (ps (alist-ref "p" q string=?))
-         (pn (if ps (string->number (car ps)) #f))
+         (pn (if ps (string->number ps) #f))
          (p  (if (and pn (positive? pn)) pn 1)))
     (list n (* n (sub1 p)))))
 
@@ -219,7 +216,7 @@ END-OF-CSS
         (pre (code ,input-text))
         (table
           ,@(map
-              (lambda (l) (cons 'tr (map (lambda (c) (list 'td c)) l)))
+              (lambda (p) `(tr (td ,(car p)) (td ,(car p))))
               input-list))))))
 
 (define (die msg)
@@ -625,7 +622,7 @@ END-OF-CSS
         (let loop ((var input-list))
           (unless (null? var)
             (when (string=? (caar var) "tags")
-              (vector-set! tags (string->number (cadar var)) 1))
+              (vector-set! tags (string->number (cdar var)) 1))
             (loop (cdr var))))
         (query
           (for-each-row*
