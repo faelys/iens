@@ -50,7 +50,7 @@
 (define (db-version)
   (query fetch-value (sql db "PRAGMA user_version;")))
 
-(when (null? (schema db))
+(when (= 0 (db-version))
   (write-line "Initializing database with schema v8")
   (for-each
     (lambda (s) (exec (sql/transient db s)))
@@ -115,18 +115,6 @@
              etag TEXT);"
           "CREATE UNIQUE INDEX i_source_rss ON source_rss(name);"
           "PRAGMA user_version = 8;")))
-
-(when (= 0 (db-version))
-  (write-line "Updating database schema from v0 to v1")
-  (assert (= 1 (query fetch-value
-                      (sql db "SELECT val FROM config WHERE key = ?;")
-                      "schema-version")))
-  (for-each
-    (lambda (s) (exec (sql/transient db s)))
-    (list "CREATE TABLE IF NOT EXISTS
-             selector (id INTEGER PRIMARY KEY, text TEXT);"
-          "DELETE FROM config WHERE key='schema-version';"
-          "PRAGMA user_version = 1;")))
 
 (when (= 1 (db-version))
   (write-line "Updating database schema from v1 to v2")
