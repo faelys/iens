@@ -166,6 +166,9 @@ END-OF-CSS
 (define url-query
   (any-of (preceded-by (is #\?) url-kv-pairs)
           (result '())))
+(define url-extra-query
+  (any-of (preceded-by (is #\&) url-kv-pairs)
+          (result '())))
 (define input-list
   (if (string=? input-text "") '() (parse url-kv-pairs input-text)))
 (define (input-var name)
@@ -781,7 +784,7 @@ END-OF-CSS
 (define (new-view)
   (redirect "/"))
 
-(define (deleted-view)
+(define (deleted-view limit-offset)
   (catch-up)
   (gruik-list-view
     "Deleted gruiks"
@@ -791,7 +794,9 @@ END-OF-CSS
             group_concat('#'||name,' ')
      FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
                 LEFT OUTER JOIN tag ON tag_id=tag.id
-     WHERE mark < 0 GROUP BY gruik.id ORDER BY mtime DESC;"))
+     WHERE mark < 0 GROUP BY gruik.id ORDER BY mtime DESC LIMIT ? OFFSET ?;"
+    (car limit-offset)
+    (cadr limit-offset)))
 
 (define (edit-view id)
   (let ((title (conc (if (positive? id) "Gruik #" "Ien #") (abs id))))
@@ -844,7 +849,7 @@ END-OF-CSS
                 LEFT OUTER JOIN tag ON tag_id=tag.id
      WHERE mark >= -5 GROUP BY gruik.id;"))
 
-(define (view-domain-search q)
+(define (view-domain-search q limit-offset)
   (gruik-list-view
     (conc "Domain " q)
     post-fragment
@@ -863,8 +868,10 @@ END-OF-CSS
      FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
                 LEFT OUTER JOIN tag ON tag_id=tag.id
      WHERE instr(url,?1)>0 GROUP BY url_id
-     ORDER BY ptime"
-    (conc "://" q "/")))
+     ORDER BY ptime LIMIT ?2 OFFSET ?3"
+    (conc "://" q "/")
+    (car limit-offset)
+    (cadr limit-offset)))
 
 (define (view-no-comm)
   (catch-up)
@@ -878,7 +885,7 @@ END-OF-CSS
                 LEFT OUTER JOIN tag ON tag_id=tag.id
      WHERE mark >= 1 AND COALESCE(comment_url,'') = '' GROUP BY gruik.id;"))
 
-(define (view-selection id)
+(define (view-selection id limit-offset)
   (let ((row (query fetch-row
                     (sql/transient db "SELECT name,text
                                        FROM selector WHERE id=?;")
@@ -898,7 +905,9 @@ END-OF-CSS
              FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
                         LEFT OUTER JOIN tag ON tag_id=tag.id "
             (cadr row)
-            "GROUP BY url_id ORDER BY ptime")))))
+            " GROUP BY url_id ORDER BY ptime LIMIT ? OFFSET ?")
+          (car limit-offset)
+          (cadr limit-offset)))))
 
 (define (view-tag tag limit-offset)
   (let ((row (query fetch-row
@@ -931,7 +940,7 @@ END-OF-CSS
           (car limit-offset)
           (cadr limit-offset)))))
 
-(define (view-url-search op q)
+(define (view-url-search op q limit-offset)
   (gruik-list-view
     (conc "Gruks " op " " q)
     post-fragment
@@ -940,8 +949,10 @@ END-OF-CSS
                   group_concat('#'||name,' '),COALESCE(description,notes)
            FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
                       LEFT OUTER JOIN tag ON tag_id=tag.id
-           WHERE url " op " ? GROUP BY gruik.id;")
-    q))
+           WHERE url " op " ? GROUP BY gruik.id LIMIT ? OFFSET ?;")
+    q
+    (car limit-offset)
+    (cadr limit-offset)))
 
 (define (db-push-gruik id)
   (with-transaction db
@@ -1244,8 +1255,9 @@ END-OF-CSS
               (_  (char-seq "do-unmarked")))
     (result (lambda () (do-unmarked x?)))))
 (define route-deleted
-  (preceded-by (char-seq "deleted")
-               (result deleted-view)))
+  (sequence* ((_  (char-seq "deleted"))
+              (lo url-query))
+    (result (lambda () (deleted-view (q-limit-offset lo))))))
 (define route-feed
   (sequence* ((_  (char-seq "feed/"))
               (id (as-string (one-or-more irc-digit)))
@@ -1258,16 +1270,19 @@ END-OF-CSS
   (preceded-by (char-seq "x-new")
                (result new-fragment)))
 (define route-domain-search
-  (sequence* ((_ (char-seq "domains/"))
-              (q (as-string (repeated item))))
-    (result (lambda () (view-domain-search q)))))
+  (sequence* ((_  (char-seq "domains/"))
+              (q  (as-string (repeated item)))
+              (lo url-query))
+    (result (lambda () (view-domain-search q (q-limit-offset lo))))))
 (define route-no-comm
   (preceded-by (char-seq "no-comm")
                (result view-no-comm)))
 (define route-selection
   (sequence* ((_  (char-seq "selection/"))
-              (id (as-string (one-or-more irc-digit))))
-    (result (lambda () (view-selection (string->number id))))))
+              (id (as-string (one-or-more irc-digit)))
+              (lo url-query))
+    (result (lambda () (view-selection (string->number id)
+                                       (q-limit-offset lo))))))
 (define route-tag
   (sequence* ((_   (char-seq "tag/"))
               (tag (as-string (repeated item until: (is #\?))))
@@ -1279,8 +1294,9 @@ END-OF-CSS
                           (char-seq "like")
                           (char-seq "regexp")))
               (_  (is #\=))
-              (q  url-value))
-    (result (lambda () (view-url-search op q)))))
+              (q  url-value)
+              (lo url-extra-query))
+    (result (lambda () (view-url-search op q (q-limit-offset lo))))))
 (define route-edit-gruik
   (sequence* ((_  (char-seq "gruik/"))
               (id (as-string (one-or-more irc-digit))))
