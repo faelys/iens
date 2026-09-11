@@ -56,7 +56,7 @@ form {
 }
 .lsub { width: 4.5rem; height: 3rem; }
 .rsub { width: 4.5rem; height: 3rem; }
-input[type=url] { display: block; width: 100%; }
+input[type=url],input[type=text] { display: block; width: 100%; }
 textarea { display: block; max-width: 100%; }
 .tag-list { column-width: 10rem; column-gap: 1rem; }
 .tag-list label { display: block; }
@@ -756,6 +756,7 @@ END-OF-CSS
         (nav (ul
           (li (a (@ (href "./")) "Latest gruiks"))
           (li (a (@ (href "deleted")) "Deleted gruiks"))
+          (li (a (@ (href "search")) "Search forms"))
           (li (a (@ (href "no-comm")) "Sourceless gruiks"))))
         ,@(gruik-list-items row->fragment q args)
         ,@footer))))
@@ -916,6 +917,36 @@ END-OF-CSS
                 LEFT OUTER JOIN tag ON tag_id=tag.id
      WHERE mark >= 1 AND COALESCE(comment_url,'') = '' GROUP BY gruik.id;"))
 
+(define (view-search)
+  (html-output
+    `(html
+      (head
+        (base (@ (href ,(conc (get-config/default "gruik-prefix" "") "/"))))
+        (meta (@ (charset "utf-8")))
+        (meta (@ (name "viewport")
+                 (content "width=device-width, initial-scale=1")))
+        (meta (@ (name "color-scheme") (content "light dark")))
+        (title "Search Forms")
+        (style ,css-style))
+      (body
+        (h1 "Search Forms")
+        (nav (ul
+          (li (a (@ (href "./")) "Latest gruiks"))
+          (li (a (@ (href "deleted")) "Deleted gruiks"))
+          (li (a (@ (href "search")) "Search forms"))
+          (li (a (@ (href "no-comm")) "Sourceless gruiks"))))
+        (h2 "URL")
+        (form (@ (method "GET") (action "url"))
+          (div (@ (class "form-body"))
+            (input (@ (type "text") (name "glob") (placeholder "*glob*")))))
+        (form (@ (method "GET") (action "url"))
+          (div (@ (class "form-body"))
+            (input (@ (type "text") (name "like") (placeholder "%like%")))))
+        (form (@ (method "GET") (action "url"))
+          (div (@ (class "form-body"))
+            (input (@ (type "text") (name "regexp")
+                      (placeholder "^reg.*exp$")))))))))
+
 (define (view-selection id limit-offset)
   (let ((row (query fetch-row
                     (sql/transient db "SELECT name,text
@@ -973,7 +1004,7 @@ END-OF-CSS
 
 (define (view-url-search op q limit-offset)
   (gruik-list-view
-    (conc "Gruks " op " " q)
+    (conc "Gruiks " op " " q)
     post-fragment
     '()
     (conc "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
@@ -1308,6 +1339,9 @@ END-OF-CSS
 (define route-no-comm
   (preceded-by (char-seq "no-comm")
                (result view-no-comm)))
+(define route-search
+  (preceded-by (char-seq "search")
+               (result view-search)))
 (define route-selection
   (sequence* ((_  (char-seq "selection/"))
               (id (as-string (one-or-more irc-digit)))
@@ -1362,6 +1396,7 @@ END-OF-CSS
                          route-ok
                          route-new
                          route-no-comm
+                         route-search
                          route-selection
                          route-tag
                          route-url-search
