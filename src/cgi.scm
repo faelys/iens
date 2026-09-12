@@ -1331,17 +1331,26 @@ END-OF-CSS
 (define route-x-new
   (preceded-by (char-seq "x-new")
                (result new-fragment)))
-(define route-domain-search
-  (sequence* ((_  (char-seq "domains/"))
-              (q  (as-string (repeated item)))
-              (lo url-query))
-    (result (lambda () (view-domain-search q (q-limit-offset lo))))))
 (define route-no-comm
   (preceded-by (char-seq "no-comm")
                (result view-no-comm)))
 (define route-search
   (preceded-by (char-seq "search")
                (result view-search)))
+(define route-search-domain
+  (sequence* ((_  (char-seq "domains/"))
+              (q  (as-string (repeated item)))
+              (lo url-query))
+    (result (lambda () (view-domain-search q (q-limit-offset lo))))))
+(define route-search-url
+  (sequence* ((_  (char-seq "url?"))
+              (op (any-of (char-seq "glob")
+                          (char-seq "like")
+                          (char-seq "regexp")))
+              (_  (is #\=))
+              (q  url-value)
+              (lo url-extra-query))
+    (result (lambda () (view-url-search op q (q-limit-offset lo))))))
 (define route-selection
   (sequence* ((_  (char-seq "selection/"))
               (id (as-string (one-or-more irc-digit)))
@@ -1353,15 +1362,6 @@ END-OF-CSS
               (tag (as-string (repeated item until: (is #\?))))
               (q   url-query))
     (result (lambda () (view-tag tag (q-limit-offset q))))))
-(define route-url-search
-  (sequence* ((_  (char-seq "url?"))
-              (op (any-of (char-seq "glob")
-                          (char-seq "like")
-                          (char-seq "regexp")))
-              (_  (is #\=))
-              (q  url-value)
-              (lo url-extra-query))
-    (result (lambda () (view-url-search op q (q-limit-offset lo))))))
 (define route-edit-gruik
   (sequence* ((_  (char-seq "gruik/"))
               (id (as-string (one-or-more irc-digit))))
@@ -1386,7 +1386,6 @@ END-OF-CSS
                          route-do-marked
                          route-do-undelete
                          route-do-unmarked
-                         route-domain-search
                          route-xdo-edit
                          route-deleted
                          route-edit-gruik
@@ -1397,9 +1396,10 @@ END-OF-CSS
                          route-new
                          route-no-comm
                          route-search
+                         route-search-domain
+                         route-search-url
                          route-selection
                          route-tag
-                         route-url-search
                          route-x-new)))))
 
 (let* ((uri (get-environment-variable "REQUEST_URI"))
