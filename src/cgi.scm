@@ -935,6 +935,17 @@ END-OF-CSS
           (li (a (@ (href "deleted")) "Deleted gruiks"))
           (li (a (@ (href "search")) "Search forms"))
           (li (a (@ (href "no-comm")) "Sourceless gruiks"))))
+        (h2 "Description")
+        (form (@ (method "GET") (action "description"))
+          (div (@ (class "form-body"))
+            (input (@ (type "text") (name "glob") (placeholder "*glob*")))))
+        (form (@ (method "GET") (action "description"))
+          (div (@ (class "form-body"))
+            (input (@ (type "text") (name "like") (placeholder "%like%")))))
+        (form (@ (method "GET") (action "description"))
+          (div (@ (class "form-body"))
+            (input (@ (type "text") (name "regexp")
+                      (placeholder "^reg.*exp$")))))
         (h2 "URL")
         (form (@ (method "GET") (action "url"))
           (div (@ (class "form-body"))
@@ -946,6 +957,20 @@ END-OF-CSS
           (div (@ (class "form-body"))
             (input (@ (type "text") (name "regexp")
                       (placeholder "^reg.*exp$")))))))))
+
+(define (view-search-field fi op q limit-offset)
+  (gruik-list-view
+    (conc "Gruiks with " fi " " op " " q)
+    post-fragment
+    '()
+    (conc "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
+                  group_concat('#'||name,' '),COALESCE(description,notes)
+           FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
+                      LEFT OUTER JOIN tag ON tag_id=tag.id
+           WHERE " fi " " op " ? GROUP BY gruik.id LIMIT ? OFFSET ?;")
+    q
+    (car limit-offset)
+    (cadr limit-offset)))
 
 (define (view-selection id limit-offset)
   (let ((row (query fetch-row
@@ -1001,20 +1026,6 @@ END-OF-CSS
           (car row)
           (car limit-offset)
           (cadr limit-offset)))))
-
-(define (view-url-search op q limit-offset)
-  (gruik-list-view
-    (conc "Gruiks " op " " q)
-    post-fragment
-    '()
-    (conc "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
-                  group_concat('#'||name,' '),COALESCE(description,notes)
-           FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
-                      LEFT OUTER JOIN tag ON tag_id=tag.id
-           WHERE url " op " ? GROUP BY gruik.id LIMIT ? OFFSET ?;")
-    q
-    (car limit-offset)
-    (cadr limit-offset)))
 
 (define (db-push-gruik id)
   (with-transaction db
@@ -1342,15 +1353,17 @@ END-OF-CSS
               (q  (as-string (repeated item)))
               (lo url-query))
     (result (lambda () (view-domain-search q (q-limit-offset lo))))))
-(define route-search-url
-  (sequence* ((_  (char-seq "url?"))
+(define route-search-field
+  (sequence* ((fi (any-of (char-seq "description")
+                          (char-seq "url")))
+              (_  (is #\?))
               (op (any-of (char-seq "glob")
                           (char-seq "like")
                           (char-seq "regexp")))
               (_  (is #\=))
               (q  url-value)
               (lo url-extra-query))
-    (result (lambda () (view-url-search op q (q-limit-offset lo))))))
+    (result (lambda () (view-search-field fi op q (q-limit-offset lo))))))
 (define route-selection
   (sequence* ((_  (char-seq "selection/"))
               (id (as-string (one-or-more irc-digit)))
@@ -1397,7 +1410,7 @@ END-OF-CSS
                          route-no-comm
                          route-search
                          route-search-domain
-                         route-search-url
+                         route-search-field
                          route-selection
                          route-tag
                          route-x-new)))))
