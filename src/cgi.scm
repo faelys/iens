@@ -148,10 +148,14 @@ END-OF-CSS
                (h url-hdigit)
                (l url-hdigit))
      (result (integer->char (+ (* 16 h) l)))))
+(define url-value-char
+  (any-of url-percent-escape
+          (preceded-by (is #\+) (result #\space))
+          item))
 (define url-value
   (as-string
-    (any-of (repeated (any-of url-percent-escape item) until: (is #\&))
-            (repeated (any-of url-percent-escape item)))))
+    (any-of (repeated url-value-char until: (is #\&))
+            (repeated url-value-char))))
 (define url-key
   (as-string (repeated item until: (is #\=))))
 (define url-kv-pair
