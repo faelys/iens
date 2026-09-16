@@ -978,11 +978,22 @@ END-OF-CSS
     (conc "Gruiks with " fi " " op " " q)
     post-fragment
     '()
-    (conc "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
+    (conc "SELECT gruik.id,mark,replace(ptime,'.','-'),
+                  section,title,url,comment_url,
                   group_concat('#'||name,' '),COALESCE(description,notes)
            FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
                       LEFT OUTER JOIN tag ON tag_id=tag.id
-           WHERE " fi " " op " ? GROUP BY gruik.id LIMIT ? OFFSET ?;")
+           WHERE " fi " " op " ?1 GROUP BY gruik.id
+           UNION ALL
+           SELECT -entry.id,(CASE WHEN protected=0 THEN 10 ELSE 11 END),
+                  strftime('%Y-%m-%d %H:%M:%S',ctime,'unixepoch') AS ptime,
+                  COALESCE(source,'Untracked Ien'),
+                  COALESCE(title,''),url,source_url,
+                  group_concat('#'||name,' '),COALESCE(description,notes)
+           FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
+                      LEFT OUTER JOIN tag ON tag_id=tag.id
+           WHERE " fi " " op " ?1 GROUP BY url_id
+           ORDER BY ptime LIMIT ?2 OFFSET ?3;")
     q
     (car limit-offset)
     (cadr limit-offset)))
