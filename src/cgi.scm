@@ -486,9 +486,9 @@ END-OF-CSS
 (define (spinner-ref)
   `(svg (@ (class spinner)) (use (@ (href "#spinner")) "")))
 
-(define (post-p-fragment id ptime section title url comm-url tags)
+(define (post-p-fragment id ptime mtime section title url comm-url tags)
   `(p
-    (span (@ (class "ptime") (title ,id)) ,ptime)
+    (span (@ (class "ptime") (title ,(rfc-3339 mtime))) ,ptime)
     ,(if (null? comm-url)
          `(span (@ (class "section")) ,section)
          `(a (@ (href ,comm-url) (class "section")) ,section))
@@ -496,7 +496,7 @@ END-OF-CSS
          `((span (@ (class "taglist")) ,tags)))
     (span (@ (class "title")) ,title)
     (a (@ (href ,url)) ,url)
-    (span (@ (class "hashid"))
+    (span (@ (class "hashid") (title ,id))
       "#" ,(substring (message-digest-string sha-256 url) 0 8))))
 
 (define (domain-counts url)
@@ -511,13 +511,13 @@ END-OF-CSS
              (sql db "SELECT COUNT(*) FROM gruik
                       WHERE mark>=0 AND instr(url,?)>0") s))))
 
-(define (edit-post-fragment id ptime section title url comm-url mark notes description tags)
+(define (edit-post-fragment id ptime mtime section title url comm-url mark notes description tags)
   `(form (@ (method "POST") (action "do-edit")
             (id ,(conc "post-" id)) (class "edit-post")
             (hx-swap "outerHTML")  (hx-post "xdo-edit"))
     (input (@ (type "submit") (name "submit") (class lsub) (value "Edit")))
     (div (@ (class "form-body"))
-      ,(post-p-fragment id ptime section title url comm-url tags)
+      ,(post-p-fragment id ptime mtime section title url comm-url tags)
       ,@(let ((counts (domain-counts url)))
          (if (and counts (positive? (+ (cadr counts) (caddr counts) -1)))
            `((p "Entries and gruiks from "
@@ -576,14 +576,14 @@ END-OF-CSS
     (map-rows* edit-post-fragment)
     (sql db
       (if (positive? id)
-          "SELECT gruik.id,ptime,section,title,url,comment_url,mark,
+          "SELECT gruik.id,ptime,mtime,section,title,url,comment_url,mark,
                   notes,description,group_concat('#'||name,' ')
            FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
                       LEFT OUTER JOIN tag ON tag_id=tag.id
            WHERE gruik.id=? GROUP BY gruik.id;"
           "SELECT -entry.id,
                   strftime('%Y.%m.%d %H:%M:%S', ctime, 'unixepoch') AS ptime,
-                  COALESCE(source, 'Untracked Ien'),
+                  mtime,COALESCE(source, 'Untracked Ien'),
                   COALESCE(title, ''), url, source_url, protected,
                   notes, description, group_concat('#'||name, ' ')
            FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
@@ -654,7 +654,7 @@ END-OF-CSS
 (define (post-fragment-id id)
   (if (positive? id) (conc "post-" id) (conc "entry" id)))
 
-(define (post-fragment id mark ptime section title url comm-url tags . details)
+(define (post-fragment id mark ptime mtime section title url comm-url tags . details)
   (let* ((data (case mark
                  ((0)  '("unmarked" "unmarked"  "Mark"    "Delete"))
                  ((1)  '("marked"   "marked"    "Edit"    "Unmark"))
@@ -680,7 +680,7 @@ END-OF-CSS
                       (class lsub) (value ,llabel))))
           '())
     (div (@ (class "form-body"))
-      ,(post-p-fragment id ptime section title url comm-url tags)
+      ,(post-p-fragment id ptime mtime section title url comm-url tags)
       ,@(if (or (null? details) (string=? (car details) ""))
             '() `((pre (code ,(car details))))))
     ,@(if rlabel
@@ -697,14 +697,14 @@ END-OF-CSS
       (map-rows* post-fragment)
       (sql db
         (if (positive? id)
-          "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
+          "SELECT gruik.id,mark,ptime,mtime,section,title,url,comment_url,
                   group_concat('#'||name,' ')
            FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
                       LEFT OUTER JOIN tag ON tag_id=tag.id
            WHERE gruik.id=? GROUP BY gruik.id;"
           "SELECT -entry.id,(CASE WHEN protected=0 THEN 10 ELSE 11 END),
                   strftime('%Y.%m.%d %H:%M:%S',ctime,'unixepoch') AS ptime,
-                  COALESCE(source,'Untracked Ien'),
+                  mtime,COALESCE(source,'Untracked Ien'),
                   COALESCE(title,''),url,source_url,
                   group_concat('#'||name,' ')
            FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
@@ -775,7 +775,7 @@ END-OF-CSS
          (frags (query
                   (map-rows*
                     (lambda (id mark ptime section title url comm-url tags)
-                      (let ((base (post-fragment id mark ptime section
+                      (let ((base (post-fragment id mark ptime mtime section
                                                  title url comm-url tags)))
                         (cond
                           ((> id last-id)
@@ -790,7 +790,7 @@ END-OF-CSS
                             `(form (@ (hx-swap-oob "delete")
                                       (id ,(post-fragment-id id)))
                                    ""))))))
-                  (sql db "SELECT gruik.id,mark,ptime,section,title,url,
+                  (sql db "SELECT gruik.id,mark,ptime,mtime,section,title,url,
                                   comment_url,group_concat('#'||name,' ')
                            FROM gruik LEFT OUTER JOIN gruik_tags
                                                       ON gruik_id=gruik.id
@@ -826,7 +826,7 @@ END-OF-CSS
     "Deleted gruiks"
     post-fragment
     '()
-    "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
+    "SELECT gruik.id,mark,ptime,mtime,section,title,url,comment_url,
             group_concat('#'||name,' ')
      FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
                 LEFT OUTER JOIN tag ON tag_id=tag.id
@@ -879,7 +879,7 @@ END-OF-CSS
         (input (@ (type "hidden") (name "last-id") (value
           ,(query fetch-value (sql db "SELECT MAX(id) FROM gruik;")))))
         (input (@ (type "submit") (name "submit") (value "Load")))))
-    "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
+    "SELECT gruik.id,mark,ptime,mtime,section,title,url,comment_url,
             group_concat('#'||name,' ')
      FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
                 LEFT OUTER JOIN tag ON tag_id=tag.id
@@ -890,7 +890,7 @@ END-OF-CSS
     (conc "Domain " q)
     post-fragment
     '()
-    "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
+    "SELECT gruik.id,mark,ptime,mtime,section,title,url,comment_url,
             group_concat('#'||name,' '),COALESCE(description,notes)
      FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
                 LEFT OUTER JOIN tag ON tag_id=tag.id
@@ -898,7 +898,7 @@ END-OF-CSS
      UNION ALL
      SELECT -entry.id,(CASE WHEN protected=0 THEN 10 ELSE 11 END),
             strftime('%Y.%m.%d %H:%M:%S',ctime,'unixepoch') AS ptime,
-            COALESCE(source,'Untracked Ien'),
+            mtime,COALESCE(source,'Untracked Ien'),
             COALESCE(title,''),url,source_url,
             group_concat('#'||name,' '),COALESCE(description,notes)
      FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
@@ -915,7 +915,7 @@ END-OF-CSS
     "Marked gruiks without comment URL"
     post-fragment
     '()
-    "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
+    "SELECT gruik.id,mark,ptime,mtime,section,title,url,comment_url,
             group_concat('#'||name,' ')
      FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
                 LEFT OUTER JOIN tag ON tag_id=tag.id
@@ -978,7 +978,7 @@ END-OF-CSS
     (conc "Gruiks with " fi " " op " " q)
     post-fragment
     '()
-    (conc "SELECT gruik.id,mark,replace(ptime,'.','-'),
+    (conc "SELECT gruik.id,mark,replace(ptime,'.','-'),mtime,
                   section,title,url,comment_url,
                   group_concat('#'||name,' '),COALESCE(description,notes)
            FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
@@ -987,7 +987,7 @@ END-OF-CSS
            UNION ALL
            SELECT -entry.id,(CASE WHEN protected=0 THEN 10 ELSE 11 END),
                   strftime('%Y-%m-%d %H:%M:%S',ctime,'unixepoch') AS ptime,
-                  COALESCE(source,'Untracked Ien'),
+                  mtime,COALESCE(source,'Untracked Ien'),
                   COALESCE(title,''),url,source_url,
                   group_concat('#'||name,' '),COALESCE(description,notes)
            FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
@@ -1012,7 +1012,7 @@ END-OF-CSS
           (conc
             "SELECT -entry.id,(CASE WHEN protected=0 THEN 10 ELSE 11 END),
                     strftime('%Y.%m.%d %H:%M:%S',ctime,'unixepoch') AS ptime,
-                    COALESCE(source,'Untracked Ien'),
+                    mtime,COALESCE(source,'Untracked Ien'),
                     COALESCE(title,''),url,source_url,
                     group_concat('#'||name,' '),COALESCE(description,notes)
              FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
@@ -1033,7 +1033,7 @@ END-OF-CSS
           (conc "Tag " (cadr row))
           post-fragment
           '()
-          "SELECT gruik.id,mark,ptime,section,title,url,comment_url,
+          "SELECT gruik.id,mark,ptime,mtime,section,title,url,comment_url,
                   group_concat('#'||name,' '),COALESCE(description,notes)
            FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
                       LEFT OUTER JOIN tag ON tag_id=tag.id
@@ -1042,7 +1042,7 @@ END-OF-CSS
            UNION ALL
            SELECT -entry.id,(CASE WHEN protected=0 THEN 10 ELSE 11 END),
                   strftime('%Y.%m.%d %H:%M:%S',ctime,'unixepoch') AS ptime,
-                  COALESCE(source,'Untracked Ien'),
+                  mtime,COALESCE(source,'Untracked Ien'),
                   COALESCE(title,''),url,source_url,
                   group_concat('#'||name,' '),COALESCE(description,notes)
            FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
