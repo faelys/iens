@@ -774,7 +774,7 @@ END-OF-CSS
          (n-del     0)
          (frags (query
                   (map-rows*
-                    (lambda (id mark ptime section title url comm-url tags)
+                    (lambda (id mark ptime mtime section title url comm-url tags)
                       (let ((base (post-fragment id mark ptime mtime section
                                                  title url comm-url tags)))
                         (cond
