@@ -904,7 +904,7 @@ END-OF-CSS
      FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
                 LEFT OUTER JOIN tag ON tag_id=tag.id
      WHERE instr(url,?1)>0 GROUP BY url_id
-     ORDER BY ptime LIMIT ?2 OFFSET ?3"
+     ORDER BY mtime DESC LIMIT ?2 OFFSET ?3"
     (conc "://" q "/")
     (car limit-offset)
     (cadr limit-offset)))
@@ -978,8 +978,7 @@ END-OF-CSS
     (conc "Gruiks with " fi " " op " " q)
     post-fragment
     '()
-    (conc "SELECT gruik.id,mark,replace(ptime,'.','-'),mtime,
-                  section,title,url,comment_url,
+    (conc "SELECT gruik.id,mark,ptime,mtime,section,title,url,comment_url,
                   group_concat('#'||name,' '),COALESCE(description,notes)
            FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
                       LEFT OUTER JOIN tag ON tag_id=tag.id
@@ -993,7 +992,7 @@ END-OF-CSS
            FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
                       LEFT OUTER JOIN tag ON tag_id=tag.id
            WHERE " fi " " op " ?1 GROUP BY url_id
-           ORDER BY ptime LIMIT ?2 OFFSET ?3;")
+           ORDER BY mtime DESC LIMIT ?2 OFFSET ?3;")
     q
     (car limit-offset)
     (cadr limit-offset)))
@@ -1018,7 +1017,7 @@ END-OF-CSS
              FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
                         LEFT OUTER JOIN tag ON tag_id=tag.id "
             (cadr row)
-            " GROUP BY url_id ORDER BY ptime LIMIT ? OFFSET ?")
+            " GROUP BY url_id ORDER BY mtime DESC LIMIT ? OFFSET ?")
           (car limit-offset)
           (cadr limit-offset)))))
 
@@ -1048,7 +1047,7 @@ END-OF-CSS
            FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
                       LEFT OUTER JOIN tag ON tag_id=tag.id
            WHERE entry.id IN (SELECT url_id FROM tagrel WHERE tag_id=?1)
-           GROUP BY url_id ORDER BY ptime LIMIT ?2 OFFSET ?3"
+           GROUP BY url_id ORDER BY mtime DESC LIMIT ?2 OFFSET ?3"
           (car row)
           (car limit-offset)
           (cadr limit-offset)))))
