@@ -753,6 +753,15 @@ END-OF-CSS
         (meta (@ (name "color-scheme") (content "light dark")))
         (title ,title)
         (script (@ (src "https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js")) "")
+        (script "\
+const beforeUnloadHandler = (event) => {
+  if (document.getElementsByClassName(\"edit-post\").length > 0) {
+    event.preventDefault();
+    event.returnValue=true;
+  }
+};
+window.addEventListener(\"beforeunload\", beforeUnloadHandler);
+")
         (style ,css-style))
       (body
         ,(spinner-symbol)
