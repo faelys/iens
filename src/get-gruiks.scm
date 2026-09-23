@@ -63,6 +63,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Gruik build from sources
 
+(define (deadline-sleep deadline count)
+  (when deadline
+    (let ((rest (- deadline (current-seconds))))
+      (when (positive? rest)
+        (secosleep (if (positive? count) (/ rest count) rest))))))
+
 (define (process-gruik source url title comm)
   (when (= 0 (exec (sql db "UPDATE gruik
                             SET lastseen=CAST(strftime('%s', 'now') as INT),
@@ -103,15 +109,16 @@
                         url))
             0 -1)))))
 
-(define (process-atom source items)
+(define (process-atom deadline source items)
   (unless (null? items)
     (process-gruik source
                    (link-uri (car (entry-links (car items))))
                    (title-text (entry-title (car items)))
                    #f)
-    (process-atom source (cdr items))))
+    (deadline-sleep deadline (length items))
+    (process-atom deadline source (cdr items))))
 
-(define (process-rss source items)
+(define (process-rss deadline source items)
   (unless (null? items)
     (let* ((item  (car items))
            (attr  (rss:item-attributes item))
@@ -119,7 +126,8 @@
            (title (rss:item-title item))
            (comm  (alist-ref 'comments attr)))
       (process-gruik source link (if title title link) comm)
-      (process-rss source (cdr items)))))
+      (deadline-sleep deadline (length items))
+      (process-rss deadline source (cdr items)))))
 
 (define (absorb-304 req parse)
   (condition-case
@@ -193,7 +201,7 @@
                 (rss:item-title (rss:feed-channel dr))))
       (else #f))))
 
-(define (process-source name url format last-modified etag)
+(define (process-source deadline name url format last-modified etag)
   (condition-case
     (let ((data (case format ((0) (get-auto url))
                              ((1) (get-atom url last-modified etag))
@@ -201,6 +209,7 @@
                              (else #f))))
       (if data
         (let ((args (list
+                      (if (and deadline (not (null? deadline))) deadline #f)
                       (if (string=? name url)
                           (begin
                             (exec (sql db "UPDATE source_rss SET name=?
@@ -248,7 +257,7 @@
                                    name,url,format,last_modified,etag
                                  FROM source_rss WHERE id = ?1;")
                         index)))
-        (apply process-source (cdr arg))
+        (apply process-source (cons deadline (cdr arg)))
         (let ((rest (- deadline (current-seconds))))
           (when (positive? rest)
             (secosleep rest)))
@@ -256,4 +265,5 @@
           (loop (car arg) (add-period deadline)))))
     (query
       (for-each-row* process-source)
-      (sql db "SELECT name,url,format,last_modified,etag FROM source_rss;")))
+      (sql db "SELECT NULL,name,url,format,last_modified,etag
+               FROM source_rss;")))
