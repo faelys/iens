@@ -28,6 +28,7 @@
   nanosleep
   rss
   sql-de-lite
+  srfi-19-time
   uri-common)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -65,9 +66,8 @@
 
 (define (deadline-sleep deadline count)
   (when deadline
-    (let ((rest (- deadline (current-seconds))))
-      (when (positive? rest)
-        (secosleep (if (positive? count) (/ rest count) rest))))))
+    (let ((rest (time->seconds (time-difference deadline (monotonic-time)))))
+      (secosleep (/ rest count)))))
 
 (define (process-gruik source url title comm)
   (when (= 0 (exec (sql db "UPDATE gruik
@@ -237,19 +237,21 @@
 ;;;;;;;;;;;;;;;
 ;; Actual Run
 
-(define (add-period prev-deadline)
-  (+ (max prev-deadline (current-seconds))
-     (/ total-period
-        (query fetch-value (sql db "SELECT count(*) FROM source_rss;")))))
+(define (source-deadline)
+  (add-duration
+    (monotonic-time)
+    (seconds->time
+      (/ total-period
+         (query fetch-value (sql db "SELECT count(*) FROM source_rss;"))))))
 
 (define usr1-queue (make-signal-handler signal/usr1))
 
 (if total-period
     (let loop ((index (query fetch-value
                              (sql/transient db
-                               "SELECT min(id) FROM source_rss;")))
-               (deadline (add-period 0)))
-      (let ((arg (query fetch-row
+                               "SELECT min(id) FROM source_rss;"))))
+      (let ((deadline (source-deadline))
+            (arg (query fetch-row
                         (sql db "SELECT
                                    COALESCE((SELECT min(id) FROM source_rss
                                                             WHERE id > ?1),
@@ -258,11 +260,9 @@
                                  FROM source_rss WHERE id = ?1;")
                         index)))
         (apply process-source (cons deadline (cdr arg)))
-        (let ((rest (- deadline (current-seconds))))
-          (when (positive? rest)
-            (secosleep rest)))
+        (deadline-sleep deadline 1)
         (unless (and (<= (car arg) index) (usr1-queue))
-          (loop (car arg) (add-period deadline)))))
+          (loop (car arg)))))
     (query
       (for-each-row* process-source)
       (sql db "SELECT NULL,name,url,format,last_modified,etag
