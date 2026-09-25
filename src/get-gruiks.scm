@@ -31,6 +31,20 @@
   srfi-19-time
   uri-common)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Scheduling primitives
+
+(define (sleep-until deadline)
+  (secosleep (time->seconds (time-difference deadline (monotonic-time)))))
+(define (run-until deadline count thunk)
+  (if deadline
+    (let* ((now (monotonic-time))
+           (my-period (/ (time->seconds (time-difference deadline now)) count))
+           (my-deadline (add-duration now (seconds->time my-period))))
+      (thunk)
+      (sleep-until my-deadline))
+    (thunk)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Command-Line Processing
 
@@ -63,11 +77,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Gruik build from sources
-
-(define (deadline-sleep deadline count)
-  (when deadline
-    (let ((rest (time->seconds (time-difference deadline (monotonic-time)))))
-      (secosleep (/ rest count)))))
 
 (define (process-gruik source url title comm)
   (when (= 0 (exec (sql db "UPDATE gruik
@@ -111,11 +120,12 @@
 
 (define (process-atom deadline source items)
   (unless (null? items)
-    (process-gruik source
-                   (link-uri (car (entry-links (car items))))
-                   (title-text (entry-title (car items)))
-                   #f)
-    (deadline-sleep deadline (length items))
+    (run-until deadline (length items)
+      (lambda ()
+        (process-gruik source
+                       (link-uri (car (entry-links (car items))))
+                       (title-text (entry-title (car items)))
+                       #f)))
     (process-atom deadline source (cdr items))))
 
 (define (process-rss deadline source items)
@@ -125,8 +135,8 @@
            (link  (rss:item-link item))
            (title (rss:item-title item))
            (comm  (alist-ref 'comments attr)))
-      (process-gruik source link (if title title link) comm)
-      (deadline-sleep deadline (length items))
+      (run-until deadline (length items)
+        (lambda () (process-gruik source link (if title title link) comm)))
       (process-rss deadline source (cdr items)))))
 
 (define (absorb-304 req parse)
@@ -260,7 +270,7 @@
                                  FROM source_rss WHERE id = ?1;")
                         index)))
         (apply process-source (cons deadline (cdr arg)))
-        (deadline-sleep deadline 1)
+        (sleep-until deadline)
         (unless (and (<= (car arg) index) (usr1-queue))
           (loop (car arg)))))
     (query
