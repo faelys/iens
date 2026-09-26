@@ -34,8 +34,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Scheduling primitives
 
+(define min-sleep (seconds->time 0.125))
 (define (sleep-until deadline)
-  (secosleep (time->seconds (time-difference deadline (monotonic-time)))))
+  (let* ((dt  (time-max min-sleep (time-difference deadline (monotonic-time))))
+         (sec (time->seconds dt)))
+    (secosleep sec)))
 (define (run-until deadline count thunk)
   (if deadline
     (let* ((now (monotonic-time))
