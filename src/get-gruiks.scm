@@ -31,6 +31,16 @@
   srfi-19-time
   uri-common)
 
+(define verbosity
+  (let ((var (get-environment-variable "VERBOSE")))
+    (if var
+        (let ((n (string->number var))) (if n n 1))
+        0)))
+(define (write-log n . args)
+  (when (>= verbosity n)
+    (let ((ts (time->string (seconds->local-time) "%H:%M:%S ")))
+      (write-line (apply conc (cons ts args))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Scheduling primitives
 
@@ -215,6 +225,7 @@
       (else #f))))
 
 (define (process-source deadline name url format last-modified etag)
+  (write-log 1 "Processing source " name)
   (condition-case
     (let ((data (case format ((0) (get-auto url))
                              ((1) (get-atom url last-modified etag))
