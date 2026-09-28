@@ -48,6 +48,7 @@
 (define (sleep-until deadline)
   (let* ((dt  (time-max min-sleep (time-difference deadline (monotonic-time))))
          (sec (time->seconds dt)))
+    (write-log 2 " Sleeping for " (exact->inexact sec) "s")
     (secosleep sec)))
 (define (run-until deadline count thunk)
   (if deadline
