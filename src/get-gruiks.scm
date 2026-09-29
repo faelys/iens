@@ -92,7 +92,21 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Gruik build from sources
 
+(define gruik-inserted 0)
+(define gruik-processed 0)
+
+(define (reset-gruik-counters)
+  (set! gruik-inserted 0)
+  (set! gruik-processed 0))
+
+(define (zero-gruik-counters)
+  (unless (and (zero? gruik-inserted) (zero? gruik-processed))
+    (write-log 0 "Unexpected processing of "
+                 gruik-inserted "/" gruik-processed " gruiks")
+    (reset-gruik-counters)))
+
 (define (process-gruik source url title comm)
+  (set! gruik-processed (add1 gruik-processed))
   (when (= 0 (exec (sql db "UPDATE gruik
                             SET lastseen=CAST(strftime('%s', 'now') as INT),
                                 comment_url=?
@@ -113,6 +127,7 @@
                               WHERE url=? AND section=?
                                 AND (comment_url IS NULL OR comment_url=?2);")
                      title (if comm comm '()) url source))
+      (set! gruik-inserted (add1 gruik-inserted))
       (exec
         (sql db "INSERT INTO gruik(position, notes, ptime,
                                    section, url, title, comment_url,
@@ -226,6 +241,7 @@
       (else #f))))
 
 (define (process-source deadline name url format last-modified etag)
+  (zero-gruik-counters)
   (write-log 1 "Processing source " name)
   (condition-case
     (let ((data (case format ((0) (get-auto url))
@@ -246,7 +262,9 @@
           (case (car data)
             ((1) (apply process-atom args))
             ((2) (apply process-rss  args))
-            (else (assert #f "Bad process index"))))
+            (else (assert #f "Bad process index")))
+          (write-log 1 "Inserted " gruik-inserted "/" gruik-processed " gruiks")
+          (reset-gruik-counters))
         (exec (sql db "UPDATE gruik
                        SET lastseen=CAST(strftime('%s', 'now') as INT)
                        WHERE section=?;")
