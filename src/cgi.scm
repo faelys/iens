@@ -243,56 +243,8 @@ END-OF-CSS
     (write-string msg))
   (exit 0))
 
-(define irc-digit      (in #\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9))
-(define irc-hex        (in #\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7
-                           #\8 #\9 #\a #\b #\c #\d #\e #\f))
-(define (irc-digits n) (repeated irc-digit n))
-(define irc-date
-  (as-string
-    (sequence (irc-digits 4) (is #\.)
-              (irc-digits 2) (is #\.)
-              (irc-digits 2) (is #\ )
-              (irc-digits 2) (is #\:)
-              (irc-digits 2) (is #\:)
-              (irc-digits 2))))
-(define irc-nick
-  (as-string
-    (enclosed-by (is #\<)
-                 (repeated item until: (is #\>))
-                 (is #\>))))
-(define irc-source
-  (as-string
-    (enclosed-by (char-seq " [")
-                 (repeated item until: (is #\]))
-                 (char-seq "] "))))
-(define irc-url
-  (as-string
-    (enclosed-by (char-seq " ")
-                 (sequence (char-seq "http")
-                           (repeated item until: (is #\space)))
-                 (char-seq " "))))
-(define irc-hash
-  (as-string
-    (enclosed-by (char-seq "#")
-                 (repeated irc-hex 8)
-                 end-of-input)))
-(define irc-suffix (sequence irc-url irc-hash))
-(define irc-line
-  (sequence irc-date
-            irc-nick
-            irc-source
-            (as-string (repeated item until: irc-suffix))
-            irc-url
-            irc-hash))
-
-(define (read-line-pos fd)
-  (let loop ((acc ""))
-    (let ((c (file-read fd 1)))
-      (if (and (= 1 (cadr c))
-               (not (string=? (car c) "\n")))
-          (loop (string-append acc (car c)))
-          (list acc (file-position fd))))))
-
+(define parse-number
+  (one-or-more (in #\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9)))
 
 
 (define root (get-environment-variable "DOCUMENT_ROOT"))
@@ -321,88 +273,14 @@ END-OF-CSS
   (die "Unexpectad database version"))
 
 
-(define (line->notes line max-width)
-  (let loop ((rest (string-split line " " #t))
-             (lines  '())
-             (words  ""))
-    (cond
-      ((null? rest)
-        (reverse-string-append (cons words lines)))
-      ((<= (+ (string-length words) 1 (string-length (car rest))) max-width)
-        (loop (cdr rest)
-              lines
-              (string-append words
-                             (if (string=? words "") "" " ")
-                             (car rest))))
-      (else
-        (loop (cdr rest)
-              (cons (string-append words "\n") lines)
-              (car rest))))))
-
-(define (insert-line line offset)
-  (and-let* ((parsed  (parse irc-line line))
-             (now     (current-seconds))
-             (section (list-ref parsed 2))
-             (title   (list-ref parsed 3))
-             (url     (list-ref parsed 4))
-             (_ (= 0 (exec (sql db
-                             "UPDATE gruik
-                              SET mtime=CAST(strftime('%s', 'now') as INT),
-                                  notes=(CASE WHEN title=?3
-                                         THEN notes
-                                         ELSE trim(notes||char(10)
-                                                   ||'Also “'||?3||'”',
-                                                   char(10))
-                                         END)
-                              WHERE section=?1 AND url=?2;")
-                           section url title)
-                     (query fetch-value
-                            (sql db "SELECT COUNT(id) FROM entry
-                                     WHERE source=? AND url=? AND title=?;")
-                            section url title))))
-    (exec
-      (sql db
-        "INSERT INTO gruik(position, notes, ptime,
-                           section, title, url, mark, ctime, mtime)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);")
-      offset
-      (line->notes line 79)
-      (car parsed)
-      section
-      title
-      url
-      (+ (query fetch-value
-                (sql db "SELECT -2*COUNT(*) FROM gruik WHERE url=?;")
-                url)
-         (query fetch-value
-                (sql db "SELECT -2*COUNT(*) FROM entry WHERE url=?;")
-                url))
-      now
-      now)))
-
-(define (catch-up)
+(define (clean-up)
   (let* ((span (get-config "gruik-clean")))
     (when (number? span)
       (exec
         (sql db "DELETE FROM gruik
                  WHERE mark < 0 AND mtime < ?1
                    AND (lastseen IS NULL OR lastseen < ?1);")
-        (- (current-seconds) span))))
-  (let ((src-path (get-config "gruik-source")))
-    (when src-path
-      (let* ((fd (file-open src-path open/rdonly))
-             (so (get-config/default "gruik-seen" 0))
-             (_  (set-file-position! fd so seek/set)))
-        (let loop ((offset so))
-          (let ((rp (read-line-pos fd)))
-            (if (= (cadr rp) offset)
-              (exec
-                (sql/transient db "INSERT OR REPLACE INTO config VALUES (?,?);")
-                "gruik-seen"
-                offset)
-              (begin
-                (apply insert-line rp)
-                (loop (cadr rp))))))))))
+        (- (current-seconds) span)))))
 
 (define (redirect location)
   (write-string "Status: 302\r\nLocation: ")
@@ -775,7 +653,7 @@ window.addEventListener(\"beforeunload\", beforeUnloadHandler);
         ,@footer))))
 
 (define (new-fragment)
-  (catch-up)
+  (clean-up)
   (let* ((last-id   (string->number (required-input-var "last-id")))
          (last-time (string->number (required-input-var "last-time")))
          (n-new     0)
@@ -830,7 +708,7 @@ window.addEventListener(\"beforeunload\", beforeUnloadHandler);
   (redirect "/"))
 
 (define (deleted-view limit-offset)
-  (catch-up)
+  (clean-up)
   (gruik-list-view
     "Deleted gruiks"
     post-fragment
@@ -876,7 +754,7 @@ window.addEventListener(\"beforeunload\", beforeUnloadHandler);
           (write-feed mtime title self-url (feed-rows selector))))))
 
 (define (main-view)
-  (catch-up)
+  (clean-up)
   (gruik-list-view
     "Latest gruiks"
     post-fragment
@@ -919,7 +797,7 @@ window.addEventListener(\"beforeunload\", beforeUnloadHandler);
     (cadr limit-offset)))
 
 (define (view-no-comm)
-  (catch-up)
+  (clean-up)
   (gruik-list-view
     "Marked gruiks without comment URL"
     post-fragment
@@ -1367,7 +1245,7 @@ window.addEventListener(\"beforeunload\", beforeUnloadHandler);
     (result (lambda () (deleted-view (q-limit-offset lo))))))
 (define route-feed
   (sequence* ((_  (char-seq "feed/"))
-              (id (as-string (one-or-more irc-digit)))
+              (id (as-string parse-number))
               (_  (char-seq ".atom")))
     (result (lambda () (feed-view (string->number id))))))
 (define route-new
@@ -1401,7 +1279,7 @@ window.addEventListener(\"beforeunload\", beforeUnloadHandler);
     (result (lambda () (view-search-field fi op q (q-limit-offset lo))))))
 (define route-selection
   (sequence* ((_  (char-seq "selection/"))
-              (id (as-string (one-or-more irc-digit)))
+              (id (as-string parse-number))
               (lo url-query))
     (result (lambda () (view-selection (string->number id)
                                        (q-limit-offset lo))))))
@@ -1412,11 +1290,11 @@ window.addEventListener(\"beforeunload\", beforeUnloadHandler);
     (result (lambda () (view-tag tag (q-limit-offset q))))))
 (define route-edit-gruik
   (sequence* ((_  (char-seq "gruik/"))
-              (id (as-string (one-or-more irc-digit))))
+              (id (as-string parse-number)))
     (result (lambda () (edit-view (string->number id))))))
 (define route-edit-ien
   (sequence* ((_  (char-seq "ien/"))
-              (id (as-string (one-or-more irc-digit))))
+              (id (as-string parse-number)))
     (result (lambda () (edit-view (- (string->number id)))))))
 (define route-main (result main-view))
 (define route-ok
