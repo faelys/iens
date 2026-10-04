@@ -826,6 +826,17 @@ window.addEventListener(\"beforeunload\", beforeUnloadHandler);
           (li (a (@ (href "deleted")) "Deleted gruiks"))
           (li (a (@ (href "search")) "Search forms"))
           (li (a (@ (href "no-comm")) "Sourceless gruiks"))))
+        (h2 "Any Field")
+        (form (@ (method "GET") (action "search"))
+          (div (@ (class "form-body"))
+            (input (@ (type "text") (name "glob") (placeholder "*glob*")))))
+        (form (@ (method "GET") (action "search"))
+          (div (@ (class "form-body"))
+            (input (@ (type "text") (name "like") (placeholder "%like%")))))
+        (form (@ (method "GET") (action "search"))
+          (div (@ (class "form-body"))
+            (input (@ (type "text") (name "regexp")
+                      (placeholder "^reg.*exp$")))))
         (h2 "Description")
         (form (@ (method "GET") (action "description"))
           (div (@ (class "form-body"))
@@ -872,28 +883,35 @@ window.addEventListener(\"beforeunload\", beforeUnloadHandler);
                       (placeholder "^reg.*exp$")))))))))
 
 (define (view-search-field fi op q limit-offset)
-  (gruik-list-view
-    (conc "Gruiks with " fi " " op " " q)
-    post-fragment
-    '()
-    (conc "SELECT gruik.id,mark,ptime,mtime,section,title,url,comment_url,
-                  group_concat('#'||name,' '),COALESCE(description,notes)
-           FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
-                      LEFT OUTER JOIN tag ON tag_id=tag.id
-           WHERE " fi " " op " ?1 GROUP BY gruik.id
-           UNION ALL
-           SELECT -entry.id,(CASE WHEN protected=0 THEN 10 ELSE 11 END),
-                  strftime('%Y-%m-%d %H:%M:%S',ctime,'unixepoch') AS ptime,
-                  mtime,COALESCE(source,'Untracked Ien'),
-                  COALESCE(title,''),url,source_url,
-                  group_concat('#'||name,' '),COALESCE(description,notes)
-           FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
-                      LEFT OUTER JOIN tag ON tag_id=tag.id
-           WHERE " fi " " op " ?1 GROUP BY url_id
-           ORDER BY mtime DESC LIMIT ?2 OFFSET ?3;")
-    q
-    (car limit-offset)
-    (cadr limit-offset)))
+  (let ((title (if (string=? fi "any")
+                 (conc "Gruiks " op " " q)
+                 (conc "Gruiks with " fi " " op " " q)))
+        (where (if (string=? fi "any")
+                 (conc "description " op " ?1 OR notes " op
+                       " ?1 OR title " op " ?1 OR url " op " ?1")
+                 (conc fi " " op " ?1"))))
+    (gruik-list-view
+      title
+      post-fragment
+      '()
+      (conc "SELECT gruik.id,mark,ptime,mtime,section,title,url,comment_url,
+                    group_concat('#'||name,' '),COALESCE(description,notes)
+             FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
+                        LEFT OUTER JOIN tag ON tag_id=tag.id
+             WHERE " where " GROUP BY gruik.id
+             UNION ALL
+             SELECT -entry.id,(CASE WHEN protected=0 THEN 10 ELSE 11 END),
+                    strftime('%Y-%m-%d %H:%M:%S',ctime,'unixepoch') AS ptime,
+                    mtime,COALESCE(source,'Untracked Ien'),
+                    COALESCE(title,''),url,source_url,
+                    group_concat('#'||name,' '),COALESCE(description,notes)
+             FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
+                        LEFT OUTER JOIN tag ON tag_id=tag.id
+             WHERE " where " GROUP BY url_id
+             ORDER BY mtime DESC LIMIT ?2 OFFSET ?3;")
+      q
+      (car limit-offset)
+      (cadr limit-offset))))
 
 (define (view-selection id limit-offset)
   (let ((row (query fetch-row
@@ -1271,6 +1289,15 @@ window.addEventListener(\"beforeunload\", beforeUnloadHandler);
 (define route-search
   (preceded-by (char-seq "search")
                (result view-search)))
+(define route-search-any-field
+  (sequence* ((_  (char-seq "search?"))
+              (op (any-of (char-seq "glob")
+                          (char-seq "like")
+                          (char-seq "regexp")))
+              (_  (is #\=))
+              (q  url-value)
+              (lo url-extra-query))
+    (result (lambda () (view-search-field "any" op q (q-limit-offset lo))))))
 (define route-search-domain
   (sequence* ((_  (char-seq "domains/"))
               (q  (as-string (repeated item)))
@@ -1334,6 +1361,7 @@ window.addEventListener(\"beforeunload\", beforeUnloadHandler);
                          route-new
                          route-no-comm
                          route-search
+                         route-search-any-field
                          route-search-domain
                          route-search-field
                          route-selection
