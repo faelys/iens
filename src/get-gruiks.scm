@@ -353,7 +353,7 @@
 
 (define (insert-line line offset)
   (set! gruik-processed (add1 gruik-processed))
-  (secosleep (time->seconds (min-sleep)))
+  (secosleep (time->seconds min-sleep))
   (and-let* ((parsed  (parse irc-line line))
              (now     (current-seconds))
              (section (list-ref parsed 2))
