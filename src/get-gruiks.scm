@@ -361,7 +361,7 @@
              (url     (list-ref parsed 4))
              (_ (= 0 (exec (sql db
                              "UPDATE gruik
-                              SET mtime=CAST(strftime('%s', 'now') as INT),
+                              SET lastseen=CAST(strftime('%s', 'now') as INT),
                                   notes=(CASE WHEN title=?3
                                          THEN notes
                                          ELSE trim(notes||char(10)
