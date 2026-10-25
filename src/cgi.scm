@@ -882,14 +882,15 @@ window.addEventListener(\"beforeunload\", beforeUnloadHandler);
             (input (@ (type "text") (name "regexp")
                       (placeholder "^reg.*exp$")))))))))
 
-(define (view-search-field fi op q limit-offset)
+(define (view-search-field fi op q mmark limit-offset)
   (let ((title (if (string=? fi "any")
                  (conc "Gruiks " op " " q)
                  (conc "Gruiks with " fi " " op " " q)))
-        (where (if (string=? fi "any")
-                 (conc "description " op " ?1 OR notes " op
-                       " ?1 OR title " op " ?1 OR url " op " ?1")
-                 (conc fi " " op " ?1"))))
+        (wh-op (if (string=? fi "any")
+                 (conc "(description " op " ?1 OR notes " op
+                       " ?1 OR title " op " ?1 OR url " op " ?1)")
+                 (conc fi " " op " ?1")))
+        (wh-mm (if mmark (conc " AND mark >= -" mmark) "")))
     (gruik-list-view
       title
       post-fragment
@@ -898,7 +899,7 @@ window.addEventListener(\"beforeunload\", beforeUnloadHandler);
                     group_concat('#'||name,' '),COALESCE(description,notes)
              FROM gruik LEFT OUTER JOIN gruik_tags ON gruik_id=gruik.id
                         LEFT OUTER JOIN tag ON tag_id=tag.id
-             WHERE " where " GROUP BY gruik.id
+             WHERE " wh-op wh-mm " GROUP BY gruik.id
              UNION ALL
              SELECT -entry.id,(CASE WHEN protected=0 THEN 10 ELSE 11 END),
                     strftime('%Y-%m-%d %H:%M:%S',ctime,'unixepoch') AS ptime,
@@ -907,7 +908,7 @@ window.addEventListener(\"beforeunload\", beforeUnloadHandler);
                     group_concat('#'||name,' '),COALESCE(description,notes)
              FROM entry LEFT OUTER JOIN tagrel ON url_id=entry.id
                         LEFT OUTER JOIN tag ON tag_id=tag.id
-             WHERE " where " GROUP BY url_id
+             WHERE " wh-op " GROUP BY url_id
              ORDER BY mtime DESC LIMIT ?2 OFFSET ?3;")
       q
       (car limit-offset)
@@ -1296,8 +1297,10 @@ window.addEventListener(\"beforeunload\", beforeUnloadHandler);
                           (char-seq "regexp")))
               (_  (is #\=))
               (q  url-value)
+              (m  (maybe
+                    (as-string (preceded-by (char-seq "&m=") parse-number))))
               (lo url-extra-query))
-    (result (lambda () (view-search-field "any" op q (q-limit-offset lo))))))
+    (result (lambda () (view-search-field "any" op q m (q-limit-offset lo))))))
 (define route-search-domain
   (sequence* ((_  (char-seq "domains/"))
               (q  (as-string (repeated item)))
@@ -1314,8 +1317,10 @@ window.addEventListener(\"beforeunload\", beforeUnloadHandler);
                           (char-seq "regexp")))
               (_  (is #\=))
               (q  url-value)
+              (m  (maybe
+                    (as-string (preceded-by (char-seq "&m=") parse-number))))
               (lo url-extra-query))
-    (result (lambda () (view-search-field fi op q (q-limit-offset lo))))))
+    (result (lambda () (view-search-field fi op q m (q-limit-offset lo))))))
 (define route-selection
   (sequence* ((_  (char-seq "selection/"))
               (id (as-string parse-number))
